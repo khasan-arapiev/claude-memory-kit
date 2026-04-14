@@ -5,6 +5,14 @@ import argparse
 import sys
 from pathlib import Path
 
+# Force UTF-8 stdout/stderr on Windows so non-ASCII chars (… « →) don't crash.
+# reconfigure() is Python 3.7+; safe to skip if unavailable.
+for stream in (sys.stdout, sys.stderr):
+    try:
+        stream.reconfigure(encoding="utf-8")  # type: ignore[attr-defined]
+    except (AttributeError, OSError):
+        pass
+
 from . import __version__
 from .audit import audit, render_human, render_json
 from .decisions import (
@@ -14,6 +22,11 @@ from .decisions import (
     search_decisions,
 )
 from .drift import drift, render_human as drift_human, render_json as drift_json
+from .query import (
+    query as run_query,
+    render_human as query_human,
+    render_json as query_json,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -47,6 +60,15 @@ def main(argv: list[str] | None = None) -> int:
     dec_search.add_argument("path", nargs="?", default=".", help="Project root")
     dec_search.add_argument("--json", action="store_true")
 
+    query_p = sub.add_parser(
+        "query",
+        help="Retrieve the most relevant brain sections for a query (TF-IDF over CLAUDE.md + docs/).",
+    )
+    query_p.add_argument("text", help="Query string. Quote multi-word queries.")
+    query_p.add_argument("path", nargs="?", default=".", help="Project root")
+    query_p.add_argument("--top", type=int, default=3, help="Number of results to return (default 3).")
+    query_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
+
     args = parser.parse_args(argv)
 
     if args.command == "audit":
@@ -58,6 +80,8 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_decisions_list(Path(args.path), json_output=args.json)
         if args.dec_command == "search":
             return _cmd_decisions_search(Path(args.path), query=args.query, json_output=args.json)
+    if args.command == "query":
+        return _cmd_query(Path(args.path), text=args.text, top_n=args.top, json_output=args.json)
 
     return 2  # unreachable
 
@@ -112,6 +136,15 @@ def _cmd_decisions_search(path: Path, query: str, json_output: bool) -> int:
     header = f'Decisions matching "{query}"'
     print(decisions_json(decisions) if json_output else render_list_human(decisions, header))
     return 0 if decisions else 1
+
+
+def _cmd_query(path: Path, text: str, top_n: int, json_output: bool) -> int:
+    hits = run_query(path, text, top_n=top_n)
+    if hits is None:
+        _no_brain(path, json_output)
+        return 2
+    print(query_json(hits) if json_output else query_human(hits, text))
+    return 0 if hits else 1
 
 
 def _no_brain(path: Path, json_output: bool) -> None:

@@ -57,10 +57,24 @@ When executing any command, load these references as needed:
 Audits and merges are deterministic Python tools, not prose instructions. From any command:
 
 ```bash
-python "$HOME/.claude/skills/project-brain/cli/run.py" audit "<path>" --json
+python "$HOME/.claude/skills/project-brain/cli/run.py" <subcommand> "<path>" --json
 ```
 
-The JSON output drives all downstream fixes. This replaces manual `find`/`grep` loops previously embedded in command prompts.
+Available subcommands:
+- `audit` — health score and finding lists
+- `drift` — docs whose described code has changed
+- `decisions list` / `decisions search <q>` — ADR ledger
+- `query <text>` — retrieve only the brain sections relevant to a topic
+
+## Retrieval-first behavior
+
+When you need to answer a question about this project:
+
+1. **First**, run `brain query "<topic>"` instead of reading whole docs. Pull only the returned sections into context.
+2. Read full docs only when the user asks for an overview or when a query result references a section you need more of.
+3. Before suggesting a significant change, run `brain decisions search "<topic>"` so you don't re-litigate a settled decision.
+
+This keeps context small, conversation fast, and answers grounded in the exact passage that supports them.
 
 ## Templates
 

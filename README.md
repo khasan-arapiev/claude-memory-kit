@@ -121,15 +121,23 @@ See `references/hooks.md` for a SessionEnd hook that runs `/ProjectSave` automat
     └── project-types/            Type-specific extras (saas, website, ecommerce, ...)
 ```
 
-## Deterministic CLI (new in v0.1)
+## Deterministic CLI
 
 Slash commands used to count orphans and score health in prose, which costs tokens and produces variable results. They now call a zero-dependency Python CLI that emits JSON:
 
 ```bash
-python cli/run.py audit /path/to/project --json
+python cli/run.py audit       /path/to/project --json
+python cli/run.py drift       /path/to/project --json
+python cli/run.py decisions list /path/to/project
+python cli/run.py decisions search "css framework" /path/to/project
+python cli/run.py query "FTP password" /path/to/project --top 3
 ```
 
-See `cli/README.md` for the full reference. Planned: `brain query`, `brain impact`, `brain drift`, `brain merge`, `brain decisions`.
+**Users never call these directly.** Slash commands invoke the CLI under the hood — same as how Claude already calls Bash for git or file operations. The CLI is the engine; slash commands are the steering wheel.
+
+**Test suite:** `python -m unittest discover tests -v` (36 tests, all stdlib).
+
+See `cli/README.md` for the full CLI reference. Planned: `brain impact`, `brain merge`, `brain init`.
 
 ---
 

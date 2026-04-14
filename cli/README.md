@@ -217,17 +217,51 @@ Legend: [A]ctive  [S]uperseded  [D]eprecated  [P]roposed
 
 **Why this exists:** Claude can ask "have we already decided about X?" before suggesting an approach. No more re-litigating settled questions.
 
+### `brain query <text> [path] [--top N] [--json]`
+
+Retrieve the most relevant brain sections for a query. Splits every doc into chunks at H2/H3 headings, ranks chunks with TF-IDF (heading matches get a 2x boost), and returns the top N hits with snippets.
+
+**Why this matters:** instead of Claude reading every doc into context "just in case," it asks a targeted question and pulls back only the relevant 200-token chunk. Context cost drops 5-10x on a real brain.
+
+**Output (human):**
+```
+Top 3 matches for "FTP password":
+
+1. [0.92]  docs/HOSTING.md:5  § FTP Access
+   The FTP root is `public_html`. Use relative paths only.
+   Credentials live in workspace-root `Security/project.json` under the `ftp` key…
+
+2. [0.34]  CLAUDE.md:42  § Sensitive Files
+   Do not read unless needed. These files contain credentials…
+```
+
+**Output (`--json`):**
+```json
+[
+  {
+    "score": 0.92,
+    "doc_path": "docs/HOSTING.md",
+    "heading": "FTP Access",
+    "line_start": 5,
+    "snippet": "The FTP root is `public_html`...",
+    "body": "...full section text..."
+  }
+]
+```
+
+**How Claude should use this:** before reading any whole brain doc, run `brain query "<topic>"` and read only the returned sections. This is the difference between "Claude knows everything because it crammed the whole brain into its head" and "Claude finds what it needs in seconds."
+
 ## Tests
 
 ```bash
 python -m unittest discover tests -v
 ```
 
-28 tests covering audit, drift, decisions, frontmatter parsing. Stdlib only. See `tests/README.md`.
+36 tests covering audit, drift, decisions, query (TF-IDF ranking + chunking), and frontmatter parsing. Stdlib only. See `tests/README.md`.
 
 ## Roadmap
 
 Planned subcommands (not yet built):
-- `brain query <text>` — retrieve brain sections matching a topic
 - `brain impact <file>` — dependency blast radius for a code file
 - `brain merge` — apply `.pending/` updates to real docs
+- `brain init` — replace `/ProjectNewSetup` prose with deterministic CLI scaffold
