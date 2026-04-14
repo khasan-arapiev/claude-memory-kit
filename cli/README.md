@@ -104,11 +104,77 @@ Total 100 points.
 | Writing Rules section | 5 | Present in CLAUDE.md |
 | Sensitive Files section | 5 | Present in CLAUDE.md |
 
+### `brain drift [path] [--json]`
+
+Flags docs whose described code files have changed since the doc was last synced. Opt-in per doc via frontmatter.
+
+**How a doc opts in:**
+
+```markdown
+---
+describes:
+  - project/pages/checkout.html
+  - project/assets/js/checkout.js
+last-synced: 2026-04-14
+---
+
+# Checkout Flow
+...body...
+```
+
+**How drift is detected:**
+- For each described file, compare its mtime to `last-synced` (or to the doc's own mtime if `last-synced` is absent).
+- If the file is newer than the sync date, the doc is drifted.
+- Missing described files are surfaced separately.
+
+**Output (human):**
+```
+Project:       /path/to/project
+Tracked docs:  3 (docs with `describes:` frontmatter)
+
+Drift (1):
+  - docs/CHECKOUT-FLOW.md
+      describes: project/checkout.js
+      doc synced: 2026-03-01, file modified: 2026-04-14 (44 days behind)
+```
+
+**Output (`--json`):**
+```json
+{
+  "project_path": "...",
+  "tracked_docs": 3,
+  "drift": [{"doc": "...", "described_file": "...", "doc_synced": "...", "file_modified": "...", "days_behind": 44}],
+  "missing_files": []
+}
+```
+
+**Why this exists:** docs rot silently when the code they describe evolves. Drift detection makes rot visible, so Claude can auto-propose updates or a human can refresh the doc.
+
+## Frontmatter spec
+
+Brain docs support a small YAML-ish frontmatter block (parsed by a stdlib parser, no PyYAML dependency):
+
+```markdown
+---
+describes:
+  - relative/path/to/code.js
+  - relative/path/to/other.html
+last-synced: 2026-04-14
+status: active             # or: superseded | deprecated
+---
+```
+
+Supported keys:
+- `describes` (list of strings) — code files this doc is about; drives drift detection
+- `last-synced` (ISO date) — when this doc was last verified against the described code
+- `status` (string) — active / superseded / deprecated (used by future decision-ledger features)
+
+Paths in `describes:` are resolved relative to the project root.
+
 ## Roadmap
 
 Planned subcommands (not yet built):
 - `brain query <text>` — retrieve brain sections matching a topic
 - `brain impact <file>` — dependency blast radius for a code file
-- `brain drift` — detect code/doc desync after edits
 - `brain merge` — apply `.pending/` updates to real docs
 - `brain decisions <topic>` — search the decision ledger

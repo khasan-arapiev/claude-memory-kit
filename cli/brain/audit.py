@@ -11,6 +11,7 @@ import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from .drift import drift as run_drift
 from .project import (
     Project,
     detect,
@@ -58,6 +59,8 @@ class AuditReport:
     claude_md_tokens: int = 0
     total_brain_tokens: int = 0
     doc_count: int = 0
+    drift_count: int = 0        # docs whose described code has changed since sync
+    tracked_docs: int = 0       # docs that opted into drift tracking via frontmatter
     score: int = 0
     summary: str = ""
 
@@ -92,6 +95,11 @@ def audit(root: Path) -> AuditReport | None:
     report.total_brain_tokens = report.claude_md_tokens + sum(
         estimate_tokens(p.read_text(encoding="utf-8", errors="replace")) for p in docs
     )
+
+    drift_report = run_drift(project.root)
+    if drift_report is not None:
+        report.tracked_docs = drift_report.tracked_docs
+        report.drift_count = len(drift_report.drift) + len(drift_report.missing_files)
 
     report.score = _score(report)
     report.summary = _summarize(report)
@@ -217,6 +225,8 @@ def _summarize(r: AuditReport) -> str:
         parts.append(f"{len(r.naming_violations)} naming violation(s)")
     if r.oversize_docs:
         parts.append(f"{len(r.oversize_docs)} oversize doc(s)")
+    if r.drift_count:
+        parts.append(f"{r.drift_count} doc(s) drifted")
     if r.missing_sections:
         parts.append("missing: " + ", ".join(r.missing_sections))
     if r.missing_files:
@@ -239,6 +249,7 @@ def render_human(r: AuditReport) -> str:
         f"CLAUDE.md:      {r.claude_md_tokens} tokens "
         f"(warn {CLAUDE_MD_TOKEN_WARN}, cap {CLAUDE_MD_TOKEN_CAP})",
         f"Total brain:    {r.total_brain_tokens} tokens across {r.doc_count} doc(s)",
+        f"Drift tracking: {r.tracked_docs} doc(s) tracked, {r.drift_count} drifted",
     ]
     if r.orphans:
         lines += ["", "Orphans:"] + [f"  - {f.path}" for f in r.orphans]
