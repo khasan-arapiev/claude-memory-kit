@@ -143,7 +143,17 @@ def _scan_dead_links(project: Project, report: AuditReport) -> None:
     for pat in patterns:
         for m in pat.finditer(text):
             target = m.group(1).strip()
-            if target in seen or target.startswith(("http://", "https://", "mailto:")):
+            if target in seen:
+                continue
+            # Skip external references: URLs, mailto, home-dir, absolute paths,
+            # Windows drive letters, and parent-relative escapes (../../).
+            if target.startswith((
+                "http://", "https://", "mailto:",
+                "~", "/", "\\",
+                "../",
+            )):
+                continue
+            if re.match(r"^[A-Za-z]:[\\/]", target):  # Windows drive (C:\, D:/)
                 continue
             seen.add(target)
             # Resolve against project root, then docs/
@@ -185,10 +195,11 @@ def _scan_doc_sizes(docs: list[Path], report: AuditReport) -> None:
 
 
 def _scan_sections(project: Project, report: AuditReport) -> None:
+    """Tolerates numbered headings: `## 2. Writing Rules` counts the same."""
     text = project.claude_md_text
-    if not re.search(r"^##\s+Writing Rules", text, re.MULTILINE):
+    if not re.search(r"^##\s+(?:\d+\.\s+)?Writing Rules\b", text, re.MULTILINE):
         report.missing_sections.append("Writing Rules")
-    if not re.search(r"^##\s+Sensitive Files", text, re.MULTILINE):
+    if not re.search(r"^##\s+(?:\d+\.\s+)?Sensitive Files\b", text, re.MULTILINE):
         report.missing_sections.append("Sensitive Files")
 
 
