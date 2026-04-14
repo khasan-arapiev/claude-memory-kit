@@ -46,10 +46,21 @@ The brain auto-routes via `CLAUDE.md` (hard cap 200 lines). New docs get auto-wi
 
 When executing any command, load these references as needed:
 
+- **CLI tooling:** `cli/README.md` — the deterministic `brain` CLI (audit, etc.). Prefer calling the CLI over manually counting files.
 - **Extraction rules:** `references/extraction-rubric.md` — what gets saved vs ignored during ProjectSave
 - **Quality enforcement:** `references/quality-rules.md` — naming, size caps, ADR format, orphan detection
 - **Command details:** `references/commands-overview.md` — full behavior matrix for all 5 commands
 - **Hook setup:** `references/hooks.md` — SessionEnd hook config for auto-save
+
+## Calling the CLI
+
+Audits and merges are deterministic Python tools, not prose instructions. From any command:
+
+```bash
+python "$HOME/.claude/skills/project-brain/cli/run.py" audit "<path>" --json
+```
+
+The JSON output drives all downstream fixes. This replaces manual `find`/`grep` loops previously embedded in command prompts.
 
 ## Templates
 

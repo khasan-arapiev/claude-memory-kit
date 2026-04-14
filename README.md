@@ -101,6 +101,10 @@ See `references/hooks.md` for a SessionEnd hook that runs `/ProjectSave` automat
 │   ├── ProjectSave.md
 │   ├── ProjectMerge.md
 │   └── ProjectUpdate.md
+├── cli/                          Deterministic tooling (Python 3.10+ stdlib)
+│   ├── run.py                    Standalone runner: python run.py audit <path>
+│   ├── brain/                    Package: brain.audit, brain.project, brain.cli
+│   └── README.md                 CLI reference
 ├── references/                   Rules and behavior specs
 │   ├── commands-overview.md
 │   ├── extraction-rubric.md      What gets saved vs ignored
@@ -116,6 +120,16 @@ See `references/hooks.md` for a SessionEnd hook that runs `/ProjectSave` automat
     ├── GITIGNORE-TEMPLATE
     └── project-types/            Type-specific extras (saas, website, ecommerce, ...)
 ```
+
+## Deterministic CLI (new in v0.1)
+
+Slash commands used to count orphans and score health in prose, which costs tokens and produces variable results. They now call a zero-dependency Python CLI that emits JSON:
+
+```bash
+python cli/run.py audit /path/to/project --json
+```
+
+See `cli/README.md` for the full reference. Planned: `brain query`, `brain impact`, `brain drift`, `brain merge`, `brain decisions`.
 
 ---
 

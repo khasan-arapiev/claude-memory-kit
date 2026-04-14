@@ -1,0 +1,133 @@
+"""Project detection and shared filesystem helpers.
+
+A project-brain project has one of three layouts:
+- project: contains CLAUDE.md + docs/ (and usually project/)
+- router:  contains CLAUDE.md + sub-folders that are themselves projects, no local docs/
+- flat:    contains CLAUDE.md + .md files at root, no docs/ folder (small projects)
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from pathlib import Path
+
+
+MANAGED_MARKER = "project-brain: managed"
+SCREAMING_KEBAB_RE = re.compile(r"^[A-Z0-9]+(?:-[A-Z0-9]+)*$")
+# ADR format: YYYY-MM-DD-SCREAMING-KEBAB
+ADR_NAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-[A-Z0-9]+(?:-[A-Z0-9]+)*$")
+# Filenames that are allowed to break SCREAMING-KEBAB-CASE (top-level convention files)
+NAMING_EXEMPT = {"README.md", "CLAUDE.md", "CHANGELOG.md", "LICENSE.md"}
+
+
+def is_valid_doc_name(path: Path) -> bool:
+    """Check if a doc filename matches project-brain naming conventions.
+
+    Accepts SCREAMING-KEBAB-CASE.md, or ADR format (YYYY-MM-DD-TITLE.md) inside a
+    decisions/ folder.
+    """
+    if path.name in NAMING_EXEMPT:
+        return True
+    stem = path.stem
+    if SCREAMING_KEBAB_RE.match(stem):
+        return True
+    if "decisions" in path.parts and ADR_NAME_RE.match(stem):
+        return True
+    return False
+
+
+@dataclass
+class Project:
+    root: Path
+    claude_md: Path
+    layout: str  # "project" | "router" | "flat"
+    docs_dir: Path | None
+    brain_version: int | None
+    claude_md_text: str
+    sub_projects: list[Path] = field(default_factory=list)
+
+    @property
+    def has_marker(self) -> bool:
+        return MANAGED_MARKER in self.claude_md_text
+
+
+def detect(root: Path) -> Project | None:
+    """Inspect `root` and return a Project, or None if no CLAUDE.md found."""
+    root = root.resolve()
+    claude = root / "CLAUDE.md"
+    if not claude.is_file():
+        return None
+
+    text = claude.read_text(encoding="utf-8", errors="replace")
+    docs = root / "docs"
+    has_docs = docs.is_dir()
+
+    # Find sub-projects: immediate child folders containing a CLAUDE.md
+    sub_projects = []
+    for child in root.iterdir():
+        if child.is_dir() and not child.name.startswith("."):
+            if (child / "CLAUDE.md").is_file():
+                sub_projects.append(child)
+
+    if has_docs:
+        layout = "project"
+    elif sub_projects and not has_docs:
+        layout = "router"
+    else:
+        layout = "flat"
+
+    return Project(
+        root=root,
+        claude_md=claude,
+        layout=layout,
+        docs_dir=docs if has_docs else None,
+        brain_version=parse_version(text),
+        claude_md_text=text,
+        sub_projects=sub_projects,
+    )
+
+
+def parse_version(text: str) -> int | None:
+    """Parse brain version from CLAUDE.md.
+
+    Supports:
+      <!-- project-brain: managed -->            -> version 1 (implicit)
+      <!-- project-brain: managed v2 -->         -> version 2
+      YAML frontmatter project-brain: {version:N} -> version N
+    """
+    m = re.search(r"project-brain:\s*managed(?:\s+v(\d+))?", text)
+    if m:
+        return int(m.group(1)) if m.group(1) else 1
+    m = re.search(r"project-brain:[^\n]*version:\s*(\d+)", text)
+    if m:
+        return int(m.group(1))
+    return None
+
+
+def iter_doc_files(project: Project) -> list[Path]:
+    """Return all brain doc files depending on layout.
+
+    For `project` layout: everything under docs/ (excluding .pending/ and archive/).
+    For `flat` layout:    all .md at root except CLAUDE.md, README.md etc.
+    For `router` layout:  no local docs (sub-projects audit themselves).
+    """
+    if project.layout == "project" and project.docs_dir:
+        return sorted(
+            p for p in project.docs_dir.rglob("*.md")
+            if ".pending" not in p.parts and "archive" not in p.parts
+        )
+    if project.layout == "flat":
+        return sorted(
+            p for p in project.root.glob("*.md")
+            if p.name not in NAMING_EXEMPT
+        )
+    return []
+
+
+def estimate_tokens(text: str) -> int:
+    """Rough token estimate: chars / 4 (close enough for budgeting).
+
+    Real tokenizers like tiktoken would be more accurate but add a dependency.
+    For brain-size budgeting this approximation is stable and good enough.
+    """
+    return max(1, len(text) // 4)
