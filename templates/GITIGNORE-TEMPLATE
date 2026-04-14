@@ -1,0 +1,40 @@
+# Project Brain managed gitignore patterns
+# Added by ProjectNewSetup / ProjectSetupFix
+# Blocks stray credentials anywhere outside Security/
+
+# Stray env files (Security/ holds all credentials)
+**/.env
+**/.env.*
+!**/.env.example
+
+# Stray credential files
+**/credentials.json
+**/secrets.json
+**/config.local.json
+**/*.key
+**/*.pem
+**/id_rsa
+**/id_rsa.pub
+
+# Security/ folder holds all credentials and must always be tracked locally
+# (committed to private git so credentials are accessible across machines)
+!Security/
+!Security/**
+
+# Build artifacts
+node_modules/
+dist/
+build/
+.next/
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+npm-debug.log*

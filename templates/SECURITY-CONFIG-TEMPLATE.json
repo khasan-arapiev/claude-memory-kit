@@ -1,0 +1,15 @@
+{
+  "_comment": "Credentials for {{PROJECT_NAME}}. Filled in by user. Never committed to public git.",
+  "project": "{{PROJECT_SLUG}}",
+  "created": "{{CREATION_DATE}}",
+  "credentials": {
+    "_example_api_key": "REPLACE_OR_REMOVE",
+    "_example_database_url": "REPLACE_OR_REMOVE"
+  },
+  "external_systems": {
+    "_example_hosting": {
+      "provider": "REPLACE_OR_REMOVE",
+      "url": "REPLACE_OR_REMOVE"
+    }
+  }
+}

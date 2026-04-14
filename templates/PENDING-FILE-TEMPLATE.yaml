@@ -1,0 +1,32 @@
+---
+session: {{SESSION_TIMESTAMP}}-{{SESSION_ID}}
+created: {{ISO_8601_TIMESTAMP}}
+items:
+  # Each item must have: type, target, content, confidence, reason
+  # Allowed types: rule, fact, decision, correction
+  # Allowed confidence: high, medium
+
+  - type: rule
+    target: docs/strategy/EXAMPLE.md
+    content: "The actual rule text in plain language."
+    confidence: high
+    reason: "Why this is being saved (e.g. user corrected me)."
+
+  - type: fact
+    target: docs/reference/EXTERNAL-SYSTEMS.md
+    content: "Name: Value (e.g. Meta Pixel ID: 0000000000000000)"
+    confidence: high
+    reason: "User shared this value during work."
+
+  - type: decision
+    target: docs/decisions/{{DATE}}-EXAMPLE-DECISION.md
+    content: "We chose X over Y because Z."
+    confidence: high
+    reason: "Explicit decision made during this session."
+
+  - type: correction
+    target: docs/architecture/EXAMPLE.md
+    content: "Previously documented as A, actual behavior is B."
+    confidence: high
+    reason: "Discovered during debugging."
+---

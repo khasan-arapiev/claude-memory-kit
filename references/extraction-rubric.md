@@ -1,0 +1,84 @@
+# Extraction Rubric
+
+When `ProjectSave` (manual or auto via SessionEnd hook) scans a session, it must distinguish high-signal information worth preserving from noise. Use this rubric.
+
+## SAVE these
+
+### Type: `fact`
+- New names, paths, URLs, numbers, IDs, credential locations
+- New file locations the user mentioned ("the config lives at X")
+- External system identifiers (Pixel IDs, account numbers, API endpoints)
+
+**Example:**
+> User said: "The Meta Pixel ID for landing page is 0000000000000000"
+> Save as: `type: fact, target: docs/reference/EXTERNAL-SYSTEMS.md, content: "Meta Pixel ID for landing page: 0000000000000000"`
+
+### Type: `rule`
+- New rules ("from now on always X", "never do Y")
+- Coding/writing/process conventions the user established
+- Constraints the user enforced ("no dashes in copy", "always use Tailwind")
+
+**Example:**
+> User said: "Never use em dashes in copy. Use commas or full stops."
+> Save as: `type: rule, target: docs/strategy/WRITING-RULES.md, content: "Never use em dashes. Use commas, full stops, or line breaks instead."`
+
+### Type: `decision`
+- Explicit decisions with reasoning
+- Architecture/tool/approach choices the user agreed to
+- Trade-offs accepted
+
+**Example:**
+> User said: "Let's use the command-based approach with ProjectSave/Merge instead of auto-silent"
+> Save as: `type: decision, target: docs/decisions/{{DATE}}-LIVING-DOCS-MODEL.md, content: "Chose command-based living docs (ProjectSave/Merge) over auto-silent because user wants explicit control of when docs evolve."`
+
+### Type: `correction`
+- "I was wrong about X, the actual behavior is Y"
+- Outdated docs that need updating
+- Mistaken assumptions Claude held that the user corrected
+
+**Example:**
+> User said: "Actually the FTP root is `public_html`, not `/home/...`"
+> Save as: `type: correction, target: docs/reference/HOSTING.md, content: "FTP root is public_html. Use relative paths only, never absolute /home/... paths."`
+
+## IGNORE these
+
+### Conversation narrative
+- "I asked Claude to do X, then Y, then Z" — this is just session flow, not knowledge
+- Reasoning chains that led to a final decision (save the decision, not the chain)
+
+### Ephemeral task state
+- "I'm working on task 3 of 5" — irrelevant after the session ends
+- "Currently debugging the login page" — temporary
+
+### Patterns already in code
+- "The button is blue" if it's literally `class="btn-blue"` in the code
+- "We use React" if `package.json` shows React (derivable from code)
+
+### Duplicates of existing docs
+- If a fact is already in `docs/reference/EXTERNAL-SYSTEMS.md`, don't save it again
+- Before saving, check if the target doc already contains the information
+
+### Vague impressions
+- "The codebase feels messy" — not actionable
+- "Maybe we should refactor the auth layer" — not a decision
+
+### Credentials themselves
+- Never save a raw credential value into a doc
+- If a new credential is discussed, the action is: "add to `Security/{{project-slug}}.json`", not "write to docs"
+
+## Confidence levels
+
+Set `confidence: high` when:
+- User explicitly stated the rule/fact/decision
+- User corrected a previous assumption
+- Multiple statements in the session reinforced the same point
+
+Set `confidence: medium` when:
+- Inferred from context but not explicitly confirmed
+- User implied agreement but did not confirm
+
+If confidence would be low, do not save the item.
+
+## Output format
+
+All saved items go into a YAML pending file in `docs/.pending/<session-id>.md` following the format in `templates/PENDING-FILE-TEMPLATE.yaml`. The session id already contains a timestamp (format: `YYYY-MM-DD-HHMM-<random4>`).
