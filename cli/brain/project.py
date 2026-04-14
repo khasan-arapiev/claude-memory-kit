@@ -13,6 +13,12 @@ from pathlib import Path
 
 
 MANAGED_MARKER = "project-brain: managed"
+# Marker must appear inside an HTML comment or YAML frontmatter to count as managed.
+# This prevents prose mentions ("> the project-brain: managed marker") from being false-positives.
+MANAGED_MARKER_RE = re.compile(
+    r"<!--[^>]*project-brain:\s*managed[^>]*-->|^---[\s\S]*?project-brain[\s\S]*?---",
+    re.MULTILINE,
+)
 SCREAMING_KEBAB_RE = re.compile(r"^[A-Z0-9]+(?:-[A-Z0-9]+)*$")
 # ADR format: YYYY-MM-DD-SCREAMING-KEBAB
 ADR_NAME_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-[A-Z0-9]+(?:-[A-Z0-9]+)*$")
@@ -48,7 +54,7 @@ class Project:
 
     @property
     def has_marker(self) -> bool:
-        return MANAGED_MARKER in self.claude_md_text
+        return bool(MANAGED_MARKER_RE.search(self.claude_md_text))
 
 
 def detect(root: Path) -> Project | None:

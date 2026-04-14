@@ -171,10 +171,63 @@ Supported keys:
 
 Paths in `describes:` are resolved relative to the project root.
 
+### `brain decisions list [path] [--json]`
+### `brain decisions search <query> [path] [--json]`
+
+Index and search the project's decision ledger (ADRs in `docs/decisions/`).
+
+**ADR format** (file `docs/decisions/2026-04-14-LIVING-DOCS-MODEL.md`):
+
+```markdown
+---
+status: active                  # active | superseded | deprecated | proposed
+topics:
+  - documentation
+  - ergonomics
+supersedes: 2026-01-12-OLD-DECISION
+---
+
+# Living Docs Model
+
+## Context
+...
+
+## Decision
+...
+```
+
+**Supersede chains** are auto-tracked: if ADR B has `supersedes: A`, then A is auto-marked `superseded` and gains a `superseded_by` back-reference.
+
+**Legacy ADRs** without frontmatter are still parsed: a `**Status:** Accepted` line is normalized to `status: active`.
+
+**Output (human):**
+```
+Decisions (3):
+
+[A] 2026-03-08  Switch to Tailwind
+    docs/decisions/2026-03-08-SWITCH-TO-TAILWIND.md
+   topics: frontend, css  supersedes: 2026-01-12-USE-BOOTSTRAP
+
+[S] 2026-01-12  Use Bootstrap for UI
+    docs/decisions/2026-01-12-USE-BOOTSTRAP.md
+   topics: frontend, css  superseded_by: 2026-03-08-SWITCH-TO-TAILWIND
+
+Legend: [A]ctive  [S]uperseded  [D]eprecated  [P]roposed
+```
+
+**Why this exists:** Claude can ask "have we already decided about X?" before suggesting an approach. No more re-litigating settled questions.
+
+## Tests
+
+```bash
+python -m unittest discover tests -v
+```
+
+28 tests covering audit, drift, decisions, frontmatter parsing. Stdlib only. See `tests/README.md`.
+
 ## Roadmap
 
 Planned subcommands (not yet built):
 - `brain query <text>` — retrieve brain sections matching a topic
 - `brain impact <file>` — dependency blast radius for a code file
 - `brain merge` — apply `.pending/` updates to real docs
-- `brain decisions <topic>` — search the decision ledger
