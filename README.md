@@ -6,6 +6,8 @@ Project Brain is a Claude Code skill that turns any project folder into a self-m
 
 > Built for solo founders, agencies, and teams who want Claude Code to feel like a long-term collaborator, not a forgetful assistant.
 
+**Status:** v0.1.0 MVP. Validated end-to-end against a real project. 48 tests passing. See [CHANGELOG.md](CHANGELOG.md) for what's shipped and [the bottom of this README](#status--known-limitations) for honest known limitations.
+
 ---
 
 ## Why Project Brain
@@ -184,9 +186,36 @@ See `references/quality-rules.md` for the full rubric.
 
 ---
 
+## Status & known limitations
+
+**Honest status:** v0.1.0 MVP. Every command runs end-to-end on real projects. Foundation is real software (deterministic CLI, 48 tests, cross-platform installers) — not a clever prompt.
+
+Validated by a full dogfood pass against a fresh SaaS project:
+- 5 of 5 slash commands exercised
+- 3 parallel subagent saves (no corruption)
+- 2 contradicting subagent decisions (conflict caught and resolved)
+- Drift detection on a real opt-in doc
+- Final brain: 100% clean, 14 docs, 1 drift-tracked
+
+**Known limitations** (none are blockers, all are roadmap):
+- `brain query` uses TF-IDF, not semantic embeddings. Synonym mismatches happen ("Sentry" vs "error monitoring").
+- `brain drift` is mtime-based, not diff-aware. Whitespace-only edits trigger false drift.
+- Conflict detection covers `decision` items only; semantic conflicts in rules and facts still need Claude to read.
+- SessionEnd auto-save hook is documented (see `references/hooks.md`) but not auto-installed.
+
+See [CHANGELOG.md](CHANGELOG.md) for the full roadmap.
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). TL;DR: stdlib only, tests before features, deterministic CLI vs prose-driven slash commands is the dividing line.
+
+---
+
 ## License
 
-MIT (add LICENSE file before making public).
+[MIT](LICENSE).
 
 ---
 
