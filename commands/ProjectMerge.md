@@ -6,134 +6,105 @@ You are running the `ProjectMerge` command from the `project-brain` skill.
 
 ## Your job
 
-Read all pending files, intelligently reconcile them, and write the result into real docs. Resolve conflicts by asking the user only about contradictions. Self-grow new doc files when needed and auto-wire them into CLAUDE.md.
+Apply every item staged in `docs/.pending/` to the real brain (`CLAUDE.md` and `docs/`). Resolve conflicts with the user. Delete pending files after they're applied. Make every change as an atomic git commit.
 
 ## Required references
 
-Load these files from the project-brain skill:
-- `~/.claude/skills/project-brain/references/quality-rules.md` (for self-growing schema rules)
-- `~/.claude/skills/project-brain/references/extraction-rubric.md`
-- `~/.claude/skills/project-brain/templates/ADR-TEMPLATE.md`
+- `~/.claude/skills/project-brain/references/quality-rules.md` — naming, size caps, self-growing schema rules
+- `~/.claude/skills/project-brain/templates/ADR-TEMPLATE.md` — for new decision items
 
-## Steps
+## Step 1 — Get the deterministic plan
 
-### 1. Verify project-brain managed
-
-Check current directory for `CLAUDE.md` with `<!-- project-brain: managed -->` marker. If absent, abort.
-
-### 2. List pending files
+Don't parse `.pending/*.md` yourself. Call the CLI:
 
 ```bash
-ls docs/.pending/*.md 2>/dev/null
+python "$HOME/.claude/skills/project-brain/cli/run.py" pending list "<project path>" --json
 ```
 
-If no pending files, output `Nothing to merge.` and exit.
+You get back an array like:
 
-### 3. Parse all pending files
-
-For each file, parse YAML frontmatter and collect all items into a flat list with source filename tracked.
-
-### 4. Deduplicate
-
-Group items by `(type, target, content)`. If two items match exactly, keep one (prefer high confidence). Record the dedup count.
-
-### 5. Detect conflicts
-
-Group items by `target`. For each target, check if any items contradict each other (e.g., one says "always do X", another says "never do X" on the same target).
-
-For each conflict:
-- Surface both versions to the user
-- Ask: "Conflict on `<target>`. Version A: `<A>`. Version B: `<B>`. Which wins? (A/B/skip)"
-- Record user's choice
-
-### 6. Apply self-growing schema
-
-For each unique item, decide where it goes:
-
-**Existing target check:**
-```bash
-test -f "<item.target>" && echo "EXISTS"
+```json
+[
+  {
+    "id": "2026-04-14-1430-a3b9::0",
+    "session_id": "2026-04-14-1430-a3b9",
+    "type": "rule",
+    "target": "docs/strategy/WRITING-RULES.md",
+    "confidence": "high",
+    "content": "Never use em dashes in copy.",
+    "source_file": "docs/.pending/2026-04-14-1430-a3b9.md",
+    "issues": []
+  }
+]
 ```
 
-**If exists:**
-- Read the file
-- Find an appropriate section (or create a new section)
-- Append the item content
-- Track for commit
+If empty, tell the user "No pending updates" and stop.
 
-**If does not exist:**
-Apply self-growing schema from `quality-rules.md`:
-1. Determine appropriate folder based on item type
-2. Generate filename in SCREAMING-KEBAB-CASE.md
-3. For `decision` type, use ADR template
-4. For others, create plain markdown with title + content
-5. **Create the parent folder if missing:** `mkdir -p "$(dirname <item.target>)"` — the target may name a folder like `docs/strategy/` that doesn't exist yet
-6. Write the file
-7. Add a routing entry to CLAUDE.md under the appropriate "Working on..." section
+## Step 2 — Surface validation issues
 
-### 7. Update CLAUDE.md routing
+Any item with non-empty `issues` is malformed. Show the user the issues and ask whether to skip those items or fix the source pending file before continuing.
 
-For every new file created, add a routing line under the appropriate section. Lines look like:
+## Step 3 — Group, dedup, detect conflicts
+
+Group items by `target`. Within each target:
+
+- **Exact duplicates** (identical `content`): keep one, drop the rest, prefer high confidence.
+- **Near-duplicates** (paraphrase of an existing item or another pending item): show both to the user, ask which to keep or whether to merge.
+- **Contradictions** (two items make opposing claims about the same subject): show both, ask which wins. The losing item is logged as a superseded ADR if both were `decision` type.
+
+## Step 4 — Apply per target, one commit each
+
+For each target file:
+
+1. **If the target exists:** run `brain query "<topic of items>"` to find the right section, then Edit-tool an append or update.
+2. **If the target does not exist (self-growing schema):**
+   - For `decision` items: create as ADR using `ADR-TEMPLATE.md`, filename `YYYY-MM-DD-KEBAB-TITLE.md` under `docs/decisions/`.
+   - For `rule` items: place under `docs/strategy/` or `docs/workflows/` based on scope.
+   - For `fact` items: place under `docs/reference/` or `docs/context/`.
+   - For `correction` items: edit wherever the original incorrect statement lives (use `brain query` to find it).
+   - After creating any new file, add a routing entry to `CLAUDE.md` (must respect the 200-line cap).
+3. Commit each target's changes as one atomic git commit: `merge: <type> -> <relative-path>`.
+
+## Step 5 — Delete merged pending files
+
+Once every item from a pending file has been applied (or skipped), delete the pending file. Commit the deletion separately: `merge: clear pending <session-id>`.
+
+## Step 6 — Re-audit and report
+
+After merging, run `brain audit` again to catch new orphans / oversize / dead-link issues introduced by the merge. Then summarize:
+
+```
+Merged 7 items across 4 docs.
+Created 1 new file (docs/decisions/2026-04-14-USE-MARKDOWN-PENDING.md).
+Resolved 1 conflict.
+Cleared 2 pending sessions.
+Brain health: 96% (was 91%).
+```
+
+## Pending file format
+
+Pending files are plain markdown (not YAML), one file per session. Each item is an H2 with metadata fields and a body:
+
 ```markdown
-### Working on <topic>
-1. Read `docs/<category>/<NEW-FILE>.md`
+# Pending updates - 2026-04-14-1430-a3b9
+
+## rule
+**target:** docs/strategy/WRITING-RULES.md
+**confidence:** high
+
+Never use em dashes in copy.
+
+## fact
+**target:** docs/reference/EXTERNAL-SYSTEMS.md
+**confidence:** high
+
+Meta Pixel ID: 0000000000000000
 ```
 
-If no section exists for the topic, create one before the `<!-- AUTO-GROWN ROUTES BELOW THIS LINE -->` marker.
+Valid types: `rule`, `fact`, `decision`, `correction`. Valid confidence: `high`, `medium`, `low`.
 
-### 8. Verify CLAUDE.md size
+## Error cases
 
-After all updates, check CLAUDE.md line count.
-
-```bash
-lines=$(wc -l < CLAUDE.md)
-if [ "$lines" -gt 200 ]; then
-  echo "WARNING: CLAUDE.md now $lines lines, exceeds cap. Suggesting lift in summary."
-fi
-```
-
-If over 200, identify the largest non-routing section and propose lifting it (do not auto-lift, just suggest in the summary).
-
-### 9. Commit each doc update atomically
-
-For each doc that was modified or created:
-```bash
-git add "<doc-path>"
-git add CLAUDE.md  # only if a route was added
-git -c user.name="<identity>" -c user.email="<identity>" commit -m "docs(project-brain): merge <item-summary> into <doc-path>"
-```
-
-One commit per doc keeps history surgical and reverts trivial.
-
-### 10. Delete merged pending files
-
-```bash
-rm docs/.pending/*.md
-git add docs/.pending/
-git -c user.name="<identity>" -c user.email="<identity>" commit -m "chore(project-brain): clear merged pending files"
-```
-
-### 11. Report
-
-Output a structured summary:
-```
-Merged <X> items into <Y> docs.
-  - <Z> conflicts resolved
-  - <N> new files created
-  - <M> existing files updated
-  - <K> pending files cleared
-
-CLAUDE.md size: <lines>/200
-```
-
-If CLAUDE.md is approaching the cap, add:
-```
-WARNING: CLAUDE.md at <lines>/200. Consider lifting these sections to dedicated docs:
-  - <section name> (~<line count> lines)
-  - ...
-```
-
-## Errors
-
-- If a pending file has malformed YAML, skip it and report at the end: "Skipped <file> due to malformed YAML."
-- If git commits fail due to missing identity, report and ask user.
+- No CLAUDE.md: tell user to run `/ProjectNewSetup` first.
+- All items have validation issues: don't proceed; report issues and ask user to fix the pending files first.
+- CLI unavailable: fall back to manual scan of `docs/.pending/` but warn the user that conflict detection will be less reliable.

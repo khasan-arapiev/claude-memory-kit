@@ -251,17 +251,44 @@ Top 3 matches for "FTP password":
 
 **How Claude should use this:** before reading any whole brain doc, run `brain query "<topic>"` and read only the returned sections. This is the difference between "Claude knows everything because it crammed the whole brain into its head" and "Claude finds what it needs in seconds."
 
+### `brain pending list [path] [--json]`
+
+List items staged in `docs/.pending/` for `/ProjectMerge` to apply. Each item declares a type, target doc, confidence, and body content.
+
+**Pending file format** (plain markdown, not YAML):
+
+```markdown
+# Pending updates - 2026-04-14-1430-a3b9
+
+## rule
+**target:** docs/strategy/WRITING-RULES.md
+**confidence:** high
+
+Never use em dashes in copy.
+
+## fact
+**target:** docs/reference/EXTERNAL-SYSTEMS.md
+**confidence:** high
+
+Meta Pixel ID: 0000000000000000
+```
+
+Valid types: `rule`, `fact`, `decision`, `correction`. Valid confidence: `high`, `medium`, `low`.
+
+**Output (JSON):** array of items with `id`, `session_id`, `type`, `target`, `confidence`, `content`, `source_file`, and `issues` (validation problems).
+
+**Why this matters:** `/ProjectMerge` used to parse pending files in prose, which broke whenever the body had a colon or a quote. The CLI parses with a tiny stdlib regex and reports validation problems up front, so Claude can focus on the semantic merge work (dedup, conflicts, placement).
+
 ## Tests
 
 ```bash
 python -m unittest discover tests -v
 ```
 
-36 tests covering audit, drift, decisions, query (TF-IDF ranking + chunking), and frontmatter parsing. Stdlib only. See `tests/README.md`.
+44 tests covering audit, drift, decisions, query (TF-IDF ranking + chunking), pending parsing, and frontmatter. Stdlib only. See `tests/README.md`.
 
 ## Roadmap
 
 Planned subcommands (not yet built):
 - `brain impact <file>` — dependency blast radius for a code file
-- `brain merge` — apply `.pending/` updates to real docs
 - `brain init` — replace `/ProjectNewSetup` prose with deterministic CLI scaffold

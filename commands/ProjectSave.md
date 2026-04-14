@@ -11,8 +11,7 @@ Scan the current conversation for high-signal insights (rules, facts, decisions,
 ## Required references
 
 Load these files from the project-brain skill:
-- `~/.claude/skills/project-brain/references/extraction-rubric.md`
-- `~/.claude/skills/project-brain/templates/PENDING-FILE-TEMPLATE.yaml`
+- `~/.claude/skills/project-brain/references/extraction-rubric.md` — what to save vs ignore
 
 ## Steps
 
@@ -52,34 +51,43 @@ If `/dev/urandom` is not available (Windows bash), use:
 session_id="$(date +%Y-%m-%d-%H%M)-$(echo $RANDOM | md5sum | head -c 4)"
 ```
 
-### 5. Build pending file
+### 5. Build pending file (plain markdown, not YAML)
 
-Use `PENDING-FILE-TEMPLATE.yaml` structure. For each extracted item, create an entry with `type`, `target`, `content`, `confidence`, `reason`.
+For each extracted item, write an H2 section with metadata fields and a body. Format:
 
-Determine `target` for each item:
-- Read CLAUDE.md routing entries
-- Match item content to the most appropriate existing doc
-- If no existing doc fits, propose a new path (the merge command will create it)
+```markdown
+# Pending updates - <session_id>
+
+## <type>
+**target:** <relative path to target doc>
+**confidence:** <high|medium|low>
+
+<body content here, multiple lines OK>
+```
+
+Valid `type` values: `rule`, `fact`, `decision`, `correction`.
+Valid `confidence`: `high`, `medium`, `low`.
+
+Determine `target` per item:
+- Run `brain query "<topic>"` to find the closest existing doc section
+- If no existing doc fits, propose a new path under `docs/<category>/` (the merge command will create it)
+- For `decision` items with no existing target, propose `docs/decisions/<session-date>-KEBAB-TITLE.md`
 
 ### 6. Write pending file
 
 ```bash
 mkdir -p docs/.pending
-cat > "docs/.pending/${session_id}.md" <<'EOF'
----
-session: <session_id>
-created: <iso_timestamp>
-items:
-  - type: ...
-    target: ...
-    content: ...
-    confidence: ...
-    reason: ...
----
-EOF
+# Write the markdown content built in step 5 to:
+#   docs/.pending/${session_id}.md
 ```
 
-Use the actual extracted items, not placeholders.
+Use the actual extracted items, not placeholders. After writing, verify the file parses cleanly:
+
+```bash
+python "$HOME/.claude/skills/project-brain/cli/run.py" pending list . --json
+```
+
+Confirm every item you wrote appears with empty `issues`. If any item shows issues, fix the file before committing.
 
 ### 7. Commit silently
 

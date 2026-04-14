@@ -54,39 +54,44 @@ Small single-project folders can use a **flat layout** instead (just `.md` files
 
 ## Installation
 
-Requires [Claude Code](https://claude.com/claude-code).
+Requires [Claude Code](https://claude.com/claude-code) and Python 3.10+.
 
-### 1. Install the skill
+### One-line install
 
-Copy the skill into your Claude skills folder:
-
+**macOS / Linux:**
 ```bash
-# macOS / Linux
-cp -r . ~/.claude/skills/project-brain/
-
-# Windows (Git Bash)
-cp -r . "$USERPROFILE/.claude/skills/project-brain/"
+git clone https://github.com/khasan-arapiev/project-brain.git
+cd project-brain && ./install.sh
 ```
 
-### 2. Install the commands
-
-Copy the 5 slash commands:
-
-```bash
-# macOS / Linux
-cp commands/Project*.md ~/.claude/commands/
-
-# Windows (Git Bash)
-cp commands/Project*.md "$USERPROFILE/.claude/commands/"
+**Windows (PowerShell):**
+```powershell
+git clone https://github.com/khasan-arapiev/project-brain.git
+cd project-brain; .\install.ps1
 ```
 
-### 3. Restart Claude Code
+The installer:
+- Verifies Python 3.10+
+- Copies the skill to `~/.claude/skills/project-brain/`
+- Copies the 5 slash commands to `~/.claude/commands/`
+- Runs the test suite (44 tests, stdlib only)
+- Prints next steps
 
-Commands and skills load at session start. Next chat: type `/ProjectNewSetup` inside any folder.
+Re-run any time to upgrade. The script is idempotent.
 
-### 4. (Optional) Enable auto-save on session end
+### Manual install (if you don't trust scripts)
 
-See `references/hooks.md` for a SessionEnd hook that runs `/ProjectSave` automatically when you close a chat.
+Copy `.` to `~/.claude/skills/project-brain/` and `commands/Project*.md` to `~/.claude/commands/`. That's it.
+
+### After install
+
+1. Restart Claude Code (so it picks up the new skill + commands)
+2. `cd` into any project folder
+3. Type `/ProjectNewSetup` (for a new project) or `/ProjectSetupFix` (to audit an existing one)
+
+### (Optional) Auto-save on session end
+
+See `references/hooks.md` for a SessionEnd hook that runs `/ProjectSave` automatically.
 
 ---
 
@@ -126,18 +131,19 @@ See `references/hooks.md` for a SessionEnd hook that runs `/ProjectSave` automat
 Slash commands used to count orphans and score health in prose, which costs tokens and produces variable results. They now call a zero-dependency Python CLI that emits JSON:
 
 ```bash
-python cli/run.py audit       /path/to/project --json
-python cli/run.py drift       /path/to/project --json
-python cli/run.py decisions list /path/to/project
+python cli/run.py audit              /path/to/project --json
+python cli/run.py drift              /path/to/project --json
+python cli/run.py decisions list     /path/to/project
 python cli/run.py decisions search "css framework" /path/to/project
 python cli/run.py query "FTP password" /path/to/project --top 3
+python cli/run.py pending list       /path/to/project --json
 ```
 
 **Users never call these directly.** Slash commands invoke the CLI under the hood — same as how Claude already calls Bash for git or file operations. The CLI is the engine; slash commands are the steering wheel.
 
-**Test suite:** `python -m unittest discover tests -v` (36 tests, all stdlib).
+**Test suite:** `python -m unittest discover tests -v` (44 tests, all stdlib).
 
-See `cli/README.md` for the full CLI reference. Planned: `brain impact`, `brain merge`, `brain init`.
+See `cli/README.md` for the full CLI reference. Planned: `brain impact`, `brain init`.
 
 ---
 

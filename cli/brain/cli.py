@@ -22,6 +22,11 @@ from .decisions import (
     search_decisions,
 )
 from .drift import drift, render_human as drift_human, render_json as drift_json
+from .pending import (
+    list_pending,
+    render_human as pending_human,
+    render_json as pending_json,
+)
 from .query import (
     query as run_query,
     render_human as query_human,
@@ -69,6 +74,15 @@ def main(argv: list[str] | None = None) -> int:
     query_p.add_argument("--top", type=int, default=3, help="Number of results to return (default 3).")
     query_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
 
+    pending_p = sub.add_parser(
+        "pending",
+        help="Inspect items staged in docs/.pending/ (used by /ProjectMerge).",
+    )
+    pending_sub = pending_p.add_subparsers(dest="pending_command", required=True)
+    pending_list = pending_sub.add_parser("list", help="List all pending items grouped by target.")
+    pending_list.add_argument("path", nargs="?", default=".", help="Project root")
+    pending_list.add_argument("--json", action="store_true")
+
     args = parser.parse_args(argv)
 
     if args.command == "audit":
@@ -82,6 +96,9 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_decisions_search(Path(args.path), query=args.query, json_output=args.json)
     if args.command == "query":
         return _cmd_query(Path(args.path), text=args.text, top_n=args.top, json_output=args.json)
+    if args.command == "pending":
+        if args.pending_command == "list":
+            return _cmd_pending_list(Path(args.path), json_output=args.json)
 
     return 2  # unreachable
 
@@ -145,6 +162,15 @@ def _cmd_query(path: Path, text: str, top_n: int, json_output: bool) -> int:
         return 2
     print(query_json(hits) if json_output else query_human(hits, text))
     return 0 if hits else 1
+
+
+def _cmd_pending_list(path: Path, json_output: bool) -> int:
+    items = list_pending(path)
+    if items is None:
+        _no_brain(path, json_output)
+        return 2
+    print(pending_json(items) if json_output else pending_human(items))
+    return 0
 
 
 def _no_brain(path: Path, json_output: bool) -> None:
