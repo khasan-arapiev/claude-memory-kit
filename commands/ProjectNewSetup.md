@@ -65,6 +65,26 @@ For router level: just `<target>/` with no subfolders.
 
 If a project type was chosen, create the type-specific extra folder per the type template.
 
+### 7.5. Create type-specific stub docs (BEFORE writing CLAUDE.md)
+
+If a project type was chosen, the type template (`templates/project-types/<TYPE>.md`) lists "Initial doc stubs". Create every stub now as a one-paragraph placeholder. This MUST happen before Step 8 — otherwise the routing entries in CLAUDE.md will point at files that don't exist yet, and the first audit will report dead links.
+
+Each stub should be a minimal markdown file:
+
+```markdown
+# <Title>
+
+> Placeholder. Fill in when the feature exists.
+```
+
+For SaaS the stubs are:
+- `docs/architecture/API-OVERVIEW.md`
+- `docs/architecture/DATA-MODEL.md`
+- `docs/workflows/DEPLOYMENT.md`
+- `project/api/endpoints.md`
+
+(Other types: see their individual templates.)
+
 ### 8. Create CLAUDE.md
 
 Read the appropriate template (`CLAUDE-MD-TEMPLATE.md` for project, `CLAUDE-MD-ROUTER-TEMPLATE.md` for router). Replace all `{{PLACEHOLDERS}}` with gathered values:
