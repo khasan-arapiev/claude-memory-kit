@@ -253,7 +253,7 @@ Top 3 matches for "FTP password":
 
 ### `brain pending list [path] [--json]`
 
-List items staged in `docs/.pending/` for `/ProjectMerge` to apply. Each item declares a type, target doc, confidence, and body content.
+List items staged in `docs/.pending/` for `/ProjectMerge` to apply, plus any detected conflicts.
 
 **Pending file format** (plain markdown, not YAML):
 
@@ -275,9 +275,27 @@ Meta Pixel ID: 0000000000000000
 
 Valid types: `rule`, `fact`, `decision`, `correction`. Valid confidence: `high`, `medium`, `low`.
 
-**Output (JSON):** array of items with `id`, `session_id`, `type`, `target`, `confidence`, `content`, `source_file`, and `issues` (validation problems).
+**Output (JSON):**
+```json
+{
+  "items": [
+    { "id": "...", "type": "rule", "target": "...", "confidence": "high",
+      "content": "...", "source_file": "...", "issues": [] }
+  ],
+  "conflicts": [
+    { "target": "docs/decisions/2026-04-14-LANGUAGE-CHOICE.md",
+      "type": "decision",
+      "item_ids": ["session-a::0", "session-b::0"],
+      "reason": "2 decision items target the same file with different content" }
+  ]
+}
+```
 
-**Why this matters:** `/ProjectMerge` used to parse pending files in prose, which broke whenever the body had a colon or a quote. The CLI parses with a tiny stdlib regex and reports validation problems up front, so Claude can focus on the semantic merge work (dedup, conflicts, placement).
+**Conflict detection rule (v1):** flags 2+ `decision` items targeting the same file with non-identical bodies. Decisions are explicit choices, so two of them at the same target are almost certainly contradictions. Identical-body duplicates are not flagged (those are dedup work). Other types (rule, fact, correction) can stack at the same target without inherently conflicting.
+
+**Exit code:** `1` when conflicts are present, `0` when clean. Useful for CI gates on `/ProjectMerge`.
+
+**Why this matters:** `/ProjectMerge` used to parse pending files in prose AND eyeball conflicts. The CLI now does both deterministically, so Claude only does what actually requires judgment (which item wins, where to place new items).
 
 ## Tests
 
@@ -285,7 +303,7 @@ Valid types: `rule`, `fact`, `decision`, `correction`. Valid confidence: `high`,
 python -m unittest discover tests -v
 ```
 
-44 tests covering audit, drift, decisions, query (TF-IDF ranking + chunking), pending parsing, and frontmatter. Stdlib only. See `tests/README.md`.
+48 tests covering audit, drift, decisions, query (TF-IDF ranking + chunking), pending parsing, conflict detection, and frontmatter. Stdlib only. See `tests/README.md`.
 
 ## Roadmap
 

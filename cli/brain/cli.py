@@ -23,6 +23,7 @@ from .decisions import (
 )
 from .drift import drift, render_human as drift_human, render_json as drift_json
 from .pending import (
+    detect_conflicts,
     list_pending,
     render_human as pending_human,
     render_json as pending_json,
@@ -169,8 +170,13 @@ def _cmd_pending_list(path: Path, json_output: bool) -> int:
     if items is None:
         _no_brain(path, json_output)
         return 2
-    print(pending_json(items) if json_output else pending_human(items))
-    return 0
+    conflicts = detect_conflicts(items)
+    if json_output:
+        print(pending_json(items, conflicts))
+    else:
+        print(pending_human(items, conflicts))
+    # Exit 1 if conflicts present so /ProjectMerge can short-circuit in CI
+    return 1 if conflicts else 0
 
 
 def _no_brain(path: Path, json_output: bool) -> None:

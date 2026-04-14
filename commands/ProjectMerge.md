@@ -21,38 +21,59 @@ Don't parse `.pending/*.md` yourself. Call the CLI:
 python "$HOME/.claude/skills/project-brain/cli/run.py" pending list "<project path>" --json
 ```
 
-You get back an array like:
+You get back a JSON object with two arrays:
 
 ```json
-[
-  {
-    "id": "2026-04-14-1430-a3b9::0",
-    "session_id": "2026-04-14-1430-a3b9",
-    "type": "rule",
-    "target": "docs/strategy/WRITING-RULES.md",
-    "confidence": "high",
-    "content": "Never use em dashes in copy.",
-    "source_file": "docs/.pending/2026-04-14-1430-a3b9.md",
-    "issues": []
-  }
-]
+{
+  "items": [
+    {
+      "id": "2026-04-14-1430-a3b9::0",
+      "session_id": "2026-04-14-1430-a3b9",
+      "type": "rule",
+      "target": "docs/strategy/WRITING-RULES.md",
+      "confidence": "high",
+      "content": "Never use em dashes in copy.",
+      "source_file": "docs/.pending/2026-04-14-1430-a3b9.md",
+      "issues": []
+    }
+  ],
+  "conflicts": [
+    {
+      "target": "docs/decisions/2026-04-14-LANGUAGE-CHOICE.md",
+      "type": "decision",
+      "item_ids": ["2026-04-14-1730-ddd4::0", "2026-04-14-1731-eee5::0"],
+      "reason": "2 decision items target the same file with different content"
+    }
+  ]
+}
 ```
 
-If empty, tell the user "No pending updates" and stop.
+If `items` is empty, tell the user "No pending updates" and stop.
 
-## Step 2 — Surface validation issues
+## Step 2 — Resolve detected conflicts FIRST
+
+If `conflicts` is non-empty, surface every conflict to the user before doing any merging. For each conflict:
+
+1. Print the target file, the conflicting item ids, and each item's body.
+2. Ask the user which item wins.
+3. The losing item gets captured in the winning ADR's "Alternatives considered" section so the rejected reasoning isn't lost.
+4. Mark losing items to be skipped during the apply step.
+
+The CLI flags conflicts deterministically (multiple decision items at the same target with different bodies). It does NOT detect semantic conflicts in `rule` or `fact` items — you still need to scan those by reading the contents during Step 3.
+
+## Step 3 — Surface validation issues
 
 Any item with non-empty `issues` is malformed. Show the user the issues and ask whether to skip those items or fix the source pending file before continuing.
 
-## Step 3 — Group, dedup, detect conflicts
+## Step 4 — Group, dedup, detect remaining conflicts
 
 Group items by `target`. Within each target:
 
 - **Exact duplicates** (identical `content`): keep one, drop the rest, prefer high confidence.
 - **Near-duplicates** (paraphrase of an existing item or another pending item): show both to the user, ask which to keep or whether to merge.
-- **Contradictions** (two items make opposing claims about the same subject): show both, ask which wins. The losing item is logged as a superseded ADR if both were `decision` type.
+- **Semantic contradictions in non-decision types** (e.g. two rules saying opposite things): show both, ask which wins.
 
-## Step 4 — Apply per target, one commit each
+## Step 5 — Apply per target, one commit each
 
 For each target file:
 
@@ -65,11 +86,11 @@ For each target file:
    - After creating any new file, add a routing entry to `CLAUDE.md` (must respect the 200-line cap).
 3. Commit each target's changes as one atomic git commit: `merge: <type> -> <relative-path>`.
 
-## Step 5 — Delete merged pending files
+## Step 6 — Delete merged pending files
 
 Once every item from a pending file has been applied (or skipped), delete the pending file. Commit the deletion separately: `merge: clear pending <session-id>`.
 
-## Step 6 — Re-audit and report
+## Step 7 — Re-audit and report
 
 After merging, run `brain audit` again to catch new orphans / oversize / dead-link issues introduced by the merge. Then summarize:
 

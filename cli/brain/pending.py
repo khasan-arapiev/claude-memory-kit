@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
@@ -36,6 +37,17 @@ VALID_CONFIDENCE = {"high", "medium", "low"}
 
 H2_RE = re.compile(r"^##\s+(\S+)\s*$", re.MULTILINE)
 FIELD_RE = re.compile(r"^\*\*([a-z][a-z_-]*):\*\*[ \t]*([^\r\n]*?)[ \t]*$", re.MULTILINE)
+
+
+@dataclass
+class Conflict:
+    target: str
+    type: str
+    item_ids: list[str]
+    reason: str
+
+    def to_dict(self) -> dict:
+        return asdict(self)
 
 
 @dataclass
@@ -51,6 +63,41 @@ class PendingItem:
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def detect_conflicts(items: list[PendingItem]) -> list[Conflict]:
+    """Flag groups of pending items that likely conflict with each other.
+
+    v1 rule: 2+ `decision` items targeting the same file with non-identical
+    bodies. Decisions are explicit choices, so two of them at the same target
+    are almost certainly contradictions Claude needs to resolve before merging.
+
+    Identical-body duplicates are skipped (those are dedup work, not conflicts).
+    Other types (rule, fact, correction) can stack at the same target without
+    necessarily conflicting, so they're not flagged here.
+    """
+    conflicts: list[Conflict] = []
+    by_key: dict[tuple[str, str], list[PendingItem]] = defaultdict(list)
+    for item in items:
+        if not item.target or item.issues:
+            continue
+        by_key[(item.target, item.type)].append(item)
+
+    for (target, type_), group in by_key.items():
+        if len(group) < 2 or type_ != "decision":
+            continue
+        unique_bodies = {it.content.strip() for it in group}
+        if len(unique_bodies) < 2:
+            continue  # all identical = dedup case, not a conflict
+        conflicts.append(
+            Conflict(
+                target=target,
+                type=type_,
+                item_ids=[it.id for it in group],
+                reason=f"{len(group)} decision items target the same file with different content",
+            )
+        )
+    return conflicts
 
 
 def list_pending(root: Path) -> list[PendingItem] | None:
@@ -128,9 +175,11 @@ def _parse_pending_file(path: Path, project_root: Path) -> list[PendingItem]:
     return items
 
 
-def render_human(items: list[PendingItem]) -> str:
+def render_human(items: list[PendingItem], conflicts: list[Conflict] | None = None) -> str:
     if not items:
         return "No pending items."
+
+    conflicts = conflicts or []
 
     by_target: dict[str, list[PendingItem]] = {}
     for it in items:
@@ -140,6 +189,14 @@ def render_human(items: list[PendingItem]) -> str:
     issue_count = sum(1 for it in items if it.issues)
     if issue_count:
         lines.append(f"WARNING: {issue_count} item(s) have validation issues.")
+        lines.append("")
+    if conflicts:
+        lines.append(f"CONFLICTS DETECTED: {len(conflicts)}")
+        for c in conflicts:
+            lines.append(f"  ! {c.target}")
+            lines.append(f"    {c.reason}")
+            for iid in c.item_ids:
+                lines.append(f"      - {iid}")
         lines.append("")
 
     for target, group in by_target.items():
@@ -155,5 +212,16 @@ def render_human(items: list[PendingItem]) -> str:
     return "\n".join(lines).rstrip()
 
 
-def render_json(items: list[PendingItem]) -> str:
-    return json.dumps([it.to_dict() for it in items], indent=2)
+def render_json(items: list[PendingItem], conflicts: list[Conflict] | None = None) -> str:
+    """Emit a JSON object with `items` and `conflicts` arrays.
+
+    Note: this is a shape change from earlier versions which emitted a bare
+    items array. /ProjectMerge consumes both keys.
+    """
+    return json.dumps(
+        {
+            "items": [it.to_dict() for it in items],
+            "conflicts": [c.to_dict() for c in (conflicts or [])],
+        },
+        indent=2,
+    )
