@@ -107,9 +107,18 @@ def audit(root: Path) -> AuditReport | None:
 
 
 def _scan_orphans(project: Project, docs: list[Path], report: AuditReport) -> None:
+    """Flag docs not referenced from CLAUDE.md.
+
+    Files inside `decisions/` are exempt: ADRs are indexed by date/topic via
+    `brain decisions`, not by per-file CLAUDE.md route. As long as CLAUDE.md
+    routes the decisions folder itself (or mentions it anywhere), individual
+    ADRs are considered discoverable.
+    """
     text = project.claude_md_text
+    decisions_routed = "decisions" in text  # cheap presence check
     for doc in docs:
-        # Look for the filename or a relative path reference
+        if "decisions" in doc.parts and decisions_routed:
+            continue
         name = doc.name
         rel = doc.relative_to(project.root).as_posix()
         if name in text or rel in text:
