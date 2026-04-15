@@ -27,6 +27,7 @@ import json
 import re
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from .project import detect, read_md
@@ -38,6 +39,10 @@ VALID_CONFIDENCE = {"high", "medium", "low"}
 # slash command. Any other {{...}} token is a typo or an unsupported template.
 KNOWN_PLACEHOLDERS = {"{{date}}", "{{project-slug}}", "{{slug}}"}
 PLACEHOLDER_RE = re.compile(r"\{\{[^}]+\}\}")
+# Single-brace tokens like `{date}` are almost always typos of `{{date}}`.
+# Catch them separately so we can give a helpful error instead of writing
+# a file literally named `{date}-X.md`.
+SINGLE_BRACE_RE = re.compile(r"(?<!\{)\{(?!\{)([a-z][a-z0-9_-]*)\}(?!\})", re.IGNORECASE)
 
 H2_RE = re.compile(r"^##\s+(\S+)\s*$", re.MULTILINE)
 FIELD_RE = re.compile(r"^\*\*([a-z][a-z_-]*):\*\*[ \t]*([^\r\n]*?)[ \t]*$", re.MULTILINE)
@@ -69,6 +74,19 @@ class PendingItem:
         return asdict(self)
 
 
+_TARGET_ISSUE_MARKERS = ("missing **target:**", "unknown placeholder")
+
+
+def _has_target_issue(item: PendingItem) -> bool:
+    """True if any of `item.issues` is about the target itself.
+
+    Body-only issues (empty body, bad type, invalid confidence) are not
+    target issues — those items should still participate in conflict
+    detection so contradictions don't slip past validation noise.
+    """
+    return any(any(m in i for m in _TARGET_ISSUE_MARKERS) for i in item.issues)
+
+
 def detect_conflicts(items: list[PendingItem]) -> list[Conflict]:
     """Flag groups of pending items that likely conflict with each other.
 
@@ -85,7 +103,11 @@ def detect_conflicts(items: list[PendingItem]) -> list[Conflict]:
     conflicts: list[Conflict] = []
     by_key: dict[tuple[str, str], list[PendingItem]] = defaultdict(list)
     for item in items:
-        if not item.target or item.issues:
+        # Only skip items whose *target* is unusable for conflict keying.
+        # A body-issue item can still conflict with a valid sibling — the
+        # user still needs to resolve "A says X, B says Y (and B is also
+        # missing stuff)" before anything gets merged.
+        if not item.target or _has_target_issue(item):
             continue
         by_key[(item.target, item.type)].append(item)
 
@@ -186,9 +208,54 @@ def _parse_pending_file(path: Path, project_root: Path) -> list[PendingItem]:
                     f"unknown placeholder '{token}' in target "
                     f"(known: {sorted(KNOWN_PLACEHOLDERS)})"
                 )
+        # Single-brace typos ({date}, {slug}) — almost always meant double.
+        for m in SINGLE_BRACE_RE.finditer(target):
+            item.issues.append(
+                f"single-brace token '{{{m.group(1)}}}' in target "
+                f"(did you mean '{{{{{m.group(1)}}}}}'?)"
+            )
 
         items.append(item)
     return items
+
+
+def archive_old(root: Path, days: int = 14, dry_run: bool = False) -> dict:
+    """Move pending files older than `days` into docs/.pending/archive/.
+
+    Stale pending files block `/ProjectSync` forever in `merge_first` mode
+    because they get counted as "other session" items. After a couple of
+    weeks with no review they're almost always abandoned. This gives the
+    user a safe way to sweep them aside without deleting anything.
+
+    Returns a dict with `scanned`, `archived`, `kept`, `moved_paths`.
+    """
+    project = detect(root)
+    if project is None:
+        return {"error": "no_claude_md", "scanned": 0, "archived": 0, "kept": 0, "moved_paths": []}
+
+    pending_dir = _find_pending_dir(project.root)
+    if pending_dir is None or not pending_dir.is_dir():
+        return {"scanned": 0, "archived": 0, "kept": 0, "moved_paths": []}
+
+    archive_dir = pending_dir / "archive"
+    cutoff = datetime.now() - timedelta(days=days)
+    scanned = archived = kept = 0
+    moved: list[str] = []
+
+    for file in sorted(pending_dir.glob("*.md")):
+        scanned += 1
+        mtime = datetime.fromtimestamp(file.stat().st_mtime)
+        if mtime >= cutoff:
+            kept += 1
+            continue
+        archived += 1
+        target = archive_dir / file.name
+        moved.append(str(target.relative_to(project.root).as_posix()))
+        if not dry_run:
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            file.rename(target)
+
+    return {"scanned": scanned, "archived": archived, "kept": kept, "moved_paths": moved}
 
 
 def render_human(items: list[PendingItem], conflicts: list[Conflict] | None = None) -> str:

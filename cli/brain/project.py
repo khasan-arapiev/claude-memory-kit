@@ -139,16 +139,24 @@ def _read_claude_md(path: Path) -> str:
 
 
 def read_md(path: Path) -> str:
-    """Read a markdown file with UTF-8 tolerance.
+    """Read a markdown file with UTF-8 tolerance and LF-normalised line endings.
 
-    Single place for the encoding dance. Returns "" on IO errors
-    rather than raising, so audits of large trees with a few unreadable
-    files don't crash mid-scan.
+    Single place for the encoding dance. Returns "" on IO errors rather than
+    raising, so audits of large trees with a few unreadable files don't crash
+    mid-scan. Normalises CRLF → LF so regexes that pin on `\\n` (frontmatter,
+    chunk strip) work on Windows-authored docs read on any platform.
     """
     try:
-        return path.read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(encoding="utf-8", errors="replace")
     except (OSError, ValueError):
         return ""
+    # Python's `read_text` does universal-newline translation in text mode on
+    # most platforms, but not when the source newline style comes from a
+    # cross-platform checkout (e.g. Git config core.autocrlf=false). Normalise
+    # explicitly so downstream parsers don't care.
+    if "\r" in text:
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+    return text
 
 
 def estimate_tokens(text: str) -> int:

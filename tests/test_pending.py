@@ -91,5 +91,144 @@ class TestConflictDetection(unittest.TestCase):
             self.assertGreater(len(bodies), 1, "conflict reported but bodies are identical")
 
 
+class TestPlaceholderValidation(unittest.TestCase):
+    """Unknown {{...}} tokens and single-brace typos flag as validation issues."""
+
+    def _parse(self, body: str):
+        import shutil, tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp) / "proj"
+            shutil.copytree(ROOT / "tests" / "fixtures" / "clean", proj)
+            pending = proj / "docs" / ".pending"
+            pending.mkdir(parents=True, exist_ok=True)
+            (pending / "2026-04-15-0900-xxxx.md").write_text(body, encoding="utf-8")
+            return list_pending(proj)
+
+    def test_known_placeholder_is_clean(self):
+        items = self._parse(
+            "# Pending\n\n"
+            "## decision\n"
+            "**target:** docs/decisions/{{date}}-FOO.md\n"
+            "**confidence:** high\n\n"
+            "Body.\n"
+        )
+        self.assertEqual(len(items), 1)
+        self.assertEqual(items[0].issues, [])
+
+    def test_unknown_double_brace_token_flags(self):
+        items = self._parse(
+            "# Pending\n\n"
+            "## rule\n"
+            "**target:** docs/{{unknown}}-FOO.md\n"
+            "**confidence:** high\n\n"
+            "Body.\n"
+        )
+        self.assertEqual(len(items), 1)
+        self.assertTrue(any("unknown placeholder" in i for i in items[0].issues))
+
+    def test_single_brace_typo_flags(self):
+        items = self._parse(
+            "# Pending\n\n"
+            "## rule\n"
+            "**target:** docs/{date}-FOO.md\n"
+            "**confidence:** high\n\n"
+            "Body.\n"
+        )
+        self.assertEqual(len(items), 1)
+        self.assertTrue(any("single-brace" in i for i in items[0].issues))
+
+
+class TestConflictWithBodyIssue(unittest.TestCase):
+    """A valid item contradicting an item-with-body-issue must still be flagged.
+
+    Regression for a bug where any `issues` entry excluded the item from
+    conflict keying — so `[valid A] vs [B with empty body]` silently merged.
+    """
+
+    def test_body_issue_does_not_hide_conflict(self):
+        import shutil, tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp) / "proj"
+            shutil.copytree(ROOT / "tests" / "fixtures" / "clean", proj)
+            pending = proj / "docs" / ".pending"
+            pending.mkdir(parents=True, exist_ok=True)
+
+            # Item A: valid
+            (pending / "2026-04-15-0900-aaaa.md").write_text(
+                "# Pending\n\n"
+                "## decision\n"
+                "**target:** docs/decisions/2026-04-15-CHOICE.md\n"
+                "**confidence:** high\n\n"
+                "Use Python.\n",
+                encoding="utf-8",
+            )
+            # Item B: bad confidence (body issue) but SAME target
+            (pending / "2026-04-15-0901-bbbb.md").write_text(
+                "# Pending\n\n"
+                "## decision\n"
+                "**target:** docs/decisions/2026-04-15-CHOICE.md\n"
+                "**confidence:** weird\n\n"
+                "Use TypeScript.\n",
+                encoding="utf-8",
+            )
+            items = list_pending(proj)
+            self.assertEqual(len(items), 2)
+            conflicts = detect_conflicts(items)
+            self.assertEqual(len(conflicts), 1)
+            self.assertEqual(
+                conflicts[0].target,
+                "docs/decisions/2026-04-15-CHOICE.md",
+            )
+
+
+class TestPendingArchive(unittest.TestCase):
+    def test_archive_moves_only_old_files(self):
+        import os
+        import shutil
+        import tempfile
+        import time
+        from brain.pending import archive_old  # noqa: E402
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp) / "proj"
+            shutil.copytree(ROOT / "tests" / "fixtures" / "clean", proj)
+            pending = proj / "docs" / ".pending"
+            pending.mkdir(parents=True, exist_ok=True)
+
+            old = pending / "2020-01-01-0000-oooo.md"
+            old.write_text("# Old\n\n## fact\n**target:** x.md\n**confidence:** high\n\nX\n", encoding="utf-8")
+            # Backdate mtime by 30 days
+            past = time.time() - 30 * 86400
+            os.utime(old, (past, past))
+
+            fresh = pending / "2026-04-15-0900-ffff.md"
+            fresh.write_text("# Fresh\n\n## fact\n**target:** y.md\n**confidence:** high\n\nY\n", encoding="utf-8")
+
+            result = archive_old(proj, days=14, dry_run=False)
+            self.assertEqual(result["scanned"], 2)
+            self.assertEqual(result["archived"], 1)
+            self.assertEqual(result["kept"], 1)
+            self.assertFalse(old.exists())
+            self.assertTrue((pending / "archive" / old.name).exists())
+            self.assertTrue(fresh.exists())
+
+    def test_dry_run_does_not_move(self):
+        import os, shutil, tempfile, time
+        from brain.pending import archive_old  # noqa: E402
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = Path(tmp) / "proj"
+            shutil.copytree(ROOT / "tests" / "fixtures" / "clean", proj)
+            pending = proj / "docs" / ".pending"
+            pending.mkdir(parents=True, exist_ok=True)
+            old = pending / "2020-01-01-0000-oooo.md"
+            old.write_text("# Old\n\n## fact\n**target:** x.md\n**confidence:** high\n\nX\n", encoding="utf-8")
+            past = time.time() - 30 * 86400
+            os.utime(old, (past, past))
+
+            result = archive_old(proj, days=14, dry_run=True)
+            self.assertEqual(result["archived"], 1)
+            self.assertTrue(old.exists(), "dry-run must not move files")
+
+
 if __name__ == "__main__":
     unittest.main()

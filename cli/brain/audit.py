@@ -127,7 +127,15 @@ def _scan_orphans(project: Project, docs: list[Path], report: AuditReport) -> No
     # Require an explicit route to `decisions/`, not a prose mention of the word.
     decisions_routed = bool(DECISIONS_ROUTE_RE.search(text))
     for doc in docs:
-        if "decisions" in doc.parts and decisions_routed:
+        # Only exempt the canonical docs/decisions/ folder at project root,
+        # not any nested folder happening to be named "decisions".
+        rel_parts = doc.relative_to(project.root).parts
+        is_top_level_adr = (
+            len(rel_parts) >= 2
+            and rel_parts[0] == "docs"
+            and rel_parts[1] == "decisions"
+        )
+        if is_top_level_adr and decisions_routed:
             continue
         name = doc.name
         rel = doc.relative_to(project.root).as_posix()

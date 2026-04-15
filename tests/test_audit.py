@@ -38,6 +38,16 @@ class TestAuditBroken(unittest.TestCase):
     def test_score_below_50(self):
         self.assertLess(self.r.score, 50)
 
+    def test_score_is_deterministic(self):
+        """Pin the exact value so weight changes can't drift silently.
+
+        Broken fixture has: 1 orphan, 1 dead link, 1 naming violation,
+        CLAUDE.md under cap, no oversize docs, no Writing Rules, no
+        Sensitive Files section, no README. Score = 15 (claude_md size) +
+        15 (doc size) = 30.
+        """
+        self.assertEqual(self.r.score, 30)
+
     def test_no_marker(self):
         self.assertFalse(self.r.has_marker)
 

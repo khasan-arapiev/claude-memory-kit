@@ -23,6 +23,7 @@ from .decisions import (
 )
 from .drift import drift, render_human as drift_human, render_json as drift_json
 from .pending import (
+    archive_old,
     detect_conflicts,
     list_pending,
     render_human as pending_human,
@@ -33,7 +34,12 @@ from .query import (
     render_human as query_human,
     render_json as query_json,
 )
-from .sync import render_human as sync_human, render_json as sync_json, sync_plan
+from .sync import (
+    new_session_id,
+    render_human as sync_human,
+    render_json as sync_json,
+    sync_plan,
+)
 
 
 def _guard(fn):
@@ -41,11 +47,16 @@ def _guard(fn):
 
     Lets huge-project audits survive a locked file or a stale symlink instead
     of aborting half-scanned. Returns exit code 3 on unhandled IO issues.
+
+    Scope is intentionally narrow: only `OSError` (and its subclasses
+    like `PermissionError`, `FileNotFoundError`). `ValueError` and friends
+    are *programmer* errors — if one escapes a handler, we want the
+    traceback, not a misleading "IO error" message.
     """
     def wrapped(*args, **kwargs) -> int:
         try:
             return fn(*args, **kwargs)
-        except (OSError, ValueError) as e:
+        except OSError as e:
             print(f"brain: IO error: {e}", file=sys.stderr)
             return 3
     wrapped.__name__ = fn.__name__
@@ -101,6 +112,21 @@ def main(argv: list[str] | None = None) -> int:
     pending_list.add_argument("path", nargs="?", default=".", help="Project root")
     pending_list.add_argument("--json", action="store_true")
 
+    pending_archive = pending_sub.add_parser(
+        "archive",
+        help="Move stale pending files (older than --days) into docs/.pending/archive/.",
+    )
+    pending_archive.add_argument("path", nargs="?", default=".", help="Project root")
+    pending_archive.add_argument(
+        "--days", type=int, default=14,
+        help="Archive files older than this many days (default 14).",
+    )
+    pending_archive.add_argument(
+        "--dry-run", action="store_true",
+        help="Report what would be moved without touching the filesystem.",
+    )
+    pending_archive.add_argument("--json", action="store_true")
+
     sync_p = sub.add_parser(
         "sync",
         help="State-aware planner for /ProjectSync (decides stage vs merge vs quick).",
@@ -113,9 +139,18 @@ def main(argv: list[str] | None = None) -> int:
     sync_plan_p.add_argument("path", nargs="?", default=".", help="Project root")
     sync_plan_p.add_argument(
         "--session-id", default="",
-        help="Current session id. Items from other sessions flip mode to merge_first.",
+        help="Current session id. When unset, mode is computed session-agnostic.",
     )
     sync_plan_p.add_argument("--json", action="store_true")
+
+    sync_newid_p = sync_sub.add_parser(
+        "new-session-id",
+        help="Emit a fresh session id (stdlib-only — no shell dependencies).",
+    )
+    sync_newid_p.add_argument(
+        "--json", action="store_true",
+        help='Emit as JSON ({"session_id": "..."}) instead of bare string.',
+    )
 
     args = parser.parse_args(argv)
 
@@ -133,6 +168,13 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "pending":
         if args.pending_command == "list":
             return _cmd_pending_list(Path(args.path), json_output=args.json)
+        if args.pending_command == "archive":
+            return _cmd_pending_archive(
+                Path(args.path),
+                days=args.days,
+                dry_run=args.dry_run,
+                json_output=args.json,
+            )
     if args.command == "sync":
         if args.sync_command == "plan":
             return _cmd_sync_plan(
@@ -140,6 +182,8 @@ def main(argv: list[str] | None = None) -> int:
                 session_id=args.session_id,
                 json_output=args.json,
             )
+        if args.sync_command == "new-session-id":
+            return _cmd_sync_new_id(json_output=args.json)
 
     return 2  # unreachable
 
@@ -221,8 +265,43 @@ def _cmd_pending_list(path: Path, json_output: bool) -> int:
         print(pending_json(items, conflicts))
     else:
         print(pending_human(items, conflicts))
-    # Exit 1 if conflicts present so /ProjectSync can short-circuit in CI
-    return 1 if conflicts else 0
+    # Non-zero if attention is needed: conflicts OR validation issues. CI
+    # scripts should see a red light when pending files have broken items
+    # (bad type, missing target, unknown placeholder) — previously the
+    # exit code was 0 and only the human output surfaced the issues.
+    has_issues = any(it.issues for it in items)
+    return 1 if (conflicts or has_issues) else 0
+
+
+@_guard
+def _cmd_pending_archive(path: Path, days: int, dry_run: bool, json_output: bool) -> int:
+    result = archive_old(path, days=days, dry_run=dry_run)
+    if "error" in result:
+        _no_brain(path, json_output)
+        return 2
+    if json_output:
+        import json as _json
+        result["dry_run"] = dry_run
+        result["days"] = days
+        print(_json.dumps(result, indent=2))
+    else:
+        verb = "Would move" if dry_run else "Moved"
+        print(f"Scanned: {result['scanned']} pending file(s)")
+        print(f"{verb}: {result['archived']}  Kept: {result['kept']}  "
+              f"(cutoff: {days} day(s))")
+        for p in result["moved_paths"]:
+            print(f"  -> {p}")
+    return 0
+
+
+def _cmd_sync_new_id(json_output: bool) -> int:
+    sid = new_session_id()
+    if json_output:
+        import json as _json
+        print(_json.dumps({"session_id": sid}))
+    else:
+        print(sid)
+    return 0
 
 
 @_guard

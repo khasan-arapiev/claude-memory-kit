@@ -6,7 +6,7 @@ Project Brain is a Claude Code skill that turns any project folder into a self-m
 
 > Built for solo founders, agencies, and teams who want Claude Code to feel like a long-term collaborator, not a forgetful assistant.
 
-**Status:** v0.2.0. Validated end-to-end against a real project. 52 tests passing. See [CHANGELOG.md](CHANGELOG.md) for what's shipped and [the bottom of this README](#status--known-limitations) for honest known limitations.
+**Status:** v0.2.1. Validated end-to-end against a real project. 73 tests passing. See [CHANGELOG.md](CHANGELOG.md) for what's shipped and [the bottom of this README](#status--known-limitations) for honest known limitations.
 
 ---
 
@@ -14,7 +14,7 @@ Project Brain is a Claude Code skill that turns any project folder into a self-m
 
 Large projects die a slow death in `CLAUDE.md`. It balloons past 500 lines, every chat re-reads the same stale context, and new learnings get lost between sessions. Project Brain fixes this with one opinionated pattern:
 
-- **`CLAUDE.md` is a router**, not a dumping ground. Hard cap: 200 lines.
+- **`CLAUDE.md` is a router**, not a dumping ground. Hard cap: 3000 tokens (≈200 lines of dense prose).
 - **Details live in `docs/`**, split by purpose and auto-linked from the router.
 - **Insights save automatically** at session end into a `.pending/` staging area.
 - **Merges are safe for parallel chats** — no overwrites, no conflicts.
@@ -77,7 +77,7 @@ The installer:
 - Verifies Python 3.10+
 - Copies the skill to `~/.claude/skills/project-brain/`
 - Copies the 3 slash commands to `~/.claude/commands/`
-- Runs the test suite (52 tests, stdlib only)
+- Runs the test suite (73 tests, stdlib only)
 - Prints next steps
 
 Re-run any time to upgrade. The script is idempotent.
@@ -145,7 +145,7 @@ python cli/run.py sync plan          /path/to/project --session-id <id> --json
 
 **Users never call these directly.** Slash commands invoke the CLI under the hood — same as how Claude already calls Bash for git or file operations. The CLI is the engine; slash commands are the steering wheel.
 
-**Test suite:** `python -m unittest discover tests -v` (52 tests, all stdlib).
+**Test suite:** `python -m unittest discover tests -v` (73 tests, all stdlib).
 
 See `cli/README.md` for the full CLI reference. Planned: `brain impact`, `brain init`.
 
@@ -154,7 +154,7 @@ See `cli/README.md` for the full CLI reference. Planned: `brain impact`, `brain 
 ## Core Principles
 
 1. **Zero headache.** You never read change logs. The brain just stays current.
-2. **Context efficiency.** `CLAUDE.md` stays under 200 lines. Details live in focused sub-docs.
+2. **Context efficiency.** `CLAUDE.md` stays under 3000 tokens (~200 lines of dense prose). Details live in focused sub-docs.
 3. **Fractal.** Same pattern works at workspace root, mid-level folders, and leaf projects.
 4. **Multi-chat safe.** `.pending/` staging prevents conflicts between parallel Claude sessions.
 5. **Self-growing.** New docs auto-wire into `CLAUDE.md` routing — no manual linking.
@@ -168,8 +168,8 @@ See `cli/README.md` for the full CLI reference. Planned: `brain impact`, `brain 
 
 - Orphan docs (files not routed from `CLAUDE.md`)
 - Dead links (routes pointing to missing files)
-- `CLAUDE.md` size (cap 200 lines, warn at 150)
-- Doc size (cap 500 lines per file)
+- `CLAUDE.md` size (cap 3000 tokens, warn at 2250)
+- Doc size (cap 7500 tokens per file, ~500 lines of dense prose)
 - Naming convention (`SCREAMING-KEBAB-CASE.md`)
 - Required sections (Writing Rules, Sensitive Files)
 - Presence of README.md
@@ -190,9 +190,20 @@ See `references/quality-rules.md` for the full rubric.
 
 ## Status & known limitations
 
-**Honest status:** v0.2.0. Every command runs end-to-end on real projects. Foundation is real software (deterministic CLI, 52 tests, cross-platform installers) — not a clever prompt.
+**Honest status:** v0.2.1. Every command runs end-to-end on real projects. Foundation is real software (deterministic CLI, 73 tests, cross-platform installers) — not a clever prompt.
 
-**What's new in v0.2.0:**
+**What's new in v0.2.1 (patch):**
+- Git working-tree check before `/ProjectSync` makes commits.
+- `brain sync new-session-id` replaces the shell-specific session id snippet (was broken on macOS).
+- `brain pending archive --days N` sweeps stale pending files into an archive folder.
+- Conflict detection no longer hides conflicts involving body-issue items.
+- Empty `--session-id` now behaves correctly (single session → quick, multi → merge_first).
+- Docs now match the code: token-based caps (3000 / 7500), not the retired line counts (200 / 500).
+- Stop hook redesigned to actually fire after `/ProjectSync` commits atomically.
+- Single-brace placeholder typos (`{date}` vs `{{date}}`) caught with a "did you mean" hint.
+- Plus: CRLF normalisation, tighter `_guard` scope, renamed pending template to `.md`, 21 new tests, `__version__` unstuck.
+
+**What shipped in v0.2.0:**
 - `/ProjectSave`, `/ProjectMerge`, `/ProjectUpdate` collapsed into one state-aware `/ProjectSync`.
 - Conflict detection widened to `rule` / `decision` / `correction` (not just decisions).
 - Stricter orphan detection for decisions (requires an explicit route, not a prose mention).

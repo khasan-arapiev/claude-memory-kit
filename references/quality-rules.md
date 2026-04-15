@@ -13,10 +13,12 @@ When creating any new doc file, enforce this naming. When auditing, rename viola
 
 ## CLAUDE.md size budget
 
-**Rule:** `CLAUDE.md` hard cap is 200 lines.
+**Rule:** `CLAUDE.md` hard cap is **3000 tokens** (≈200 lines of dense prose).
 
-- **Warning threshold:** 150 lines (suggest action on next merge)
-- **Hard cap:** 200 lines (must lift sections out before commit)
+- **Warning threshold:** 2250 tokens (suggest action on next sync)
+- **Hard cap:** 3000 tokens (must lift sections out before commit)
+
+The audit measures tokens, not lines, so layout-heavy markdown (tables, code blocks) isn't penalised for being formatted. Token estimation is `chars / 4` — no external tokenizer required. See `cli/brain/audit.py:CLAUDE_MD_TOKEN_CAP` for the source of truth.
 
 When `CLAUDE.md` approaches or exceeds the cap:
 1. Identify the largest section that is purely informational (not routing)
@@ -25,9 +27,9 @@ When `CLAUDE.md` approaches or exceeds the cap:
 
 ## Doc size budget
 
-**Rule:** Individual doc files in `docs/` should not exceed 500 lines.
+**Rule:** Individual doc files in `docs/` should not exceed **7500 tokens** (≈500 lines of dense prose).
 
-When a doc crosses 500 lines:
+When a doc crosses 7500 tokens:
 1. Identify natural section boundaries
 2. Propose splitting into 2 or more focused files
 3. Update CLAUDE.md routing to point to all new files
@@ -96,8 +98,8 @@ Calculated by `ProjectSetupFix`. Each metric scored 0 or weight (no partial cred
 |---|---|---|
 | Orphan-free | 25% | Zero orphaned docs in `docs/` |
 | Route integrity | 25% | Zero broken routes in CLAUDE.md |
-| CLAUDE.md size | 15% | Under 200 lines (partial: 100% under 150, 50% between 150-200, 0% over) |
-| Doc size compliance | 15% | All docs under 500 lines (partial: -5% per doc over) |
+| CLAUDE.md size | 15% | Under 3000 tokens (partial: 100% under 2250, 50% between 2250-3000, 0% over) |
+| Doc size compliance | 15% | All docs under 7500 tokens (partial: -5% per doc over) |
 | Naming convention | 10% | All `docs/*.md` files match SCREAMING-KEBAB-CASE |
 | Writing rules present | 5% | "Writing Rules" section exists in CLAUDE.md |
 | Sensitive files section | 5% | Section exists in CLAUDE.md |

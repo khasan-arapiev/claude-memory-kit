@@ -34,9 +34,11 @@ Both live in `~/.claude/settings.json` under the `hooks` key.
 
 The `test -f CLAUDE.md` guard means the hook only fires in project-brain-managed folders. Elsewhere it's a no-op.
 
-## 2. Stop — prompt to sync when brain docs were touched
+## 2. Stop — prompt to sync when session looks un-synced
 
-**Purpose:** After a work turn, if any `docs/` or `CLAUDE.md` file was modified, print a reminder so the user can run `/ProjectSync` before losing the context. This is a **prompt, not an auto-run** — because extracting the right insights is a judgment call that needs Claude's attention, not a cron job.
+**Purpose:** After a work turn, if the session looks like it produced brain-worthy work but no `/ProjectSync` has run yet, print a reminder. This is a **prompt, not an auto-run** — extracting the right insights is a judgment call.
+
+**The subtle bit:** `/ProjectSync` already commits its work atomically, so the naive check of "are there uncommitted changes under `docs/`?" reports false right after a sync. Instead, check two things: (a) there are pending items the user hasn't merged yet, OR (b) no `sync:` commit has touched this repo in the last hour despite activity.
 
 ```json
 {
@@ -47,12 +49,25 @@ The `test -f CLAUDE.md` guard means the hook only fires in project-brain-managed
         "hooks": [
           {
             "type": "command",
-            "command": "git -C . diff --name-only HEAD 2>/dev/null | grep -qE '^(docs/|CLAUDE\\.md)' && echo 'Brain docs changed this session. Run /ProjectSync to stage + merge.' || true"
+            "command": "test -f CLAUDE.md || exit 0; python \"$HOME/.claude/skills/project-brain/cli/run.py\" pending list . --json 2>/dev/null | python -c 'import json,sys,subprocess; d=json.load(sys.stdin); n=len(d.get(\"items\",[])); recent=subprocess.run([\"git\",\"log\",\"--since=1 hour ago\",\"--grep=^sync:\",\"--oneline\"],capture_output=True,text=True).stdout.strip(); print(\"Brain reminder: \"+str(n)+\" pending item(s). Run /ProjectSync.\") if (n>0 or not recent) else None' 2>/dev/null || true"
           }
         ]
       }
     ]
   }
+}
+```
+
+Single-line because Claude Code hooks run one shell command. If you prefer readability, save the logic as a script and have the hook call the script.
+
+### Alternative: simpler but noisier
+
+If the above is too clever, this simpler variant fires whenever pending is non-empty (including right after a merge_first Sync that legitimately left items staged for another session):
+
+```json
+{
+  "type": "command",
+  "command": "test -f CLAUDE.md && python \"$HOME/.claude/skills/project-brain/cli/run.py\" pending list . 2>/dev/null | grep -q 'Pending items:' && echo 'Pending items staged. Run /ProjectSync when ready.' || true"
 }
 ```
 

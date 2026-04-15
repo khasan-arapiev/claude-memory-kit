@@ -25,7 +25,13 @@ from pathlib import Path
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
-ALLOWED_STATUS = {"active", "superseded", "deprecated", "proposed", "accepted", "approved"}
+# Canonical ADR statuses. `accepted` / `approved` are accepted as *input* by
+# decisions._STATUS_ALIASES but get normalised to `active` before they ever
+# land in a Decision object — so they are NOT listed here as valid output.
+ALLOWED_STATUS = {"active", "superseded", "deprecated", "proposed"}
+# Legacy aliases that will be rewritten to a canonical status. Keep in sync
+# with decisions._STATUS_ALIASES.
+STATUS_INPUT_ALIASES = {"accepted", "approved"}
 ALLOWED_CONFIDENCE = {"high", "medium", "low"}
 
 
@@ -54,10 +60,12 @@ class Frontmatter:
         """
         warnings: list[str] = []
         status = self.data.get("status")
-        if isinstance(status, str) and status.lower() not in ALLOWED_STATUS:
-            warnings.append(
-                f"unknown status '{status}' (valid: {sorted(ALLOWED_STATUS)})"
-            )
+        if isinstance(status, str):
+            sl = status.lower()
+            if sl not in ALLOWED_STATUS and sl not in STATUS_INPUT_ALIASES:
+                warnings.append(
+                    f"unknown status '{status}' (valid: {sorted(ALLOWED_STATUS)})"
+                )
         confidence = self.data.get("confidence")
         if isinstance(confidence, str) and confidence.lower() not in ALLOWED_CONFIDENCE:
             warnings.append(
