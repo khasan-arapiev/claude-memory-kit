@@ -1,10 +1,19 @@
-# Project Brain — A Living Documentation System for Claude Code
+# Project Brain — Persistent Project Memory for Claude Code
 
-**Keep every Claude Code chat context-aware, without ever re-explaining your project.**
+**Keep every Claude Code session context-aware, without ever re-explaining your project.**
 
-Project Brain is a Claude Code skill that turns any project folder into a self-maintaining knowledge base. It scaffolds your docs, keeps `CLAUDE.md` lean, auto-routes new information, and evolves across sessions so Claude always knows your project — without bloating context or losing decisions.
+Project Brain is a [Claude Code](https://claude.com/claude-code) skill + Python CLI that solves the "every new Claude chat forgets my project" problem. It scaffolds a living `CLAUDE.md` router + `docs/` knowledge base, stages insights between sessions, auto-detects conflicts, and prevents context bloat as your project grows. Think of it as long-term memory for your AI coding agent.
 
-> Built for solo founders, agencies, and teams who want Claude Code to feel like a long-term collaborator, not a forgetful assistant.
+**Problems this solves:**
+- "My `CLAUDE.md` is 800 lines and every chat re-reads the same stale context"
+- "I told Claude the same thing three sessions in a row and it still forgets"
+- "Two Claude sessions on the same project overwrite each other's work"
+- "Decisions I made with Claude two weeks ago are nowhere I can find them"
+- "I keep re-pasting project context into every chat"
+
+**Keywords:** Claude Code, CLAUDE.md, Anthropic Claude, AI coding agent memory, persistent context, living documentation, ADR, architecture decision records, AI development workflow, Claude skill, slash commands.
+
+> Built for solo founders, agencies, and small teams who want Claude Code to behave like a long-term collaborator, not a forgetful assistant.
 
 **Status:** v0.3.0. Validated end-to-end against a real project. 95 tests passing. See [CHANGELOG.md](CHANGELOG.md) for what's shipped and [the bottom of this README](#status--known-limitations) for honest known limitations.
 

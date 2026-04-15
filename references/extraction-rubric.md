@@ -10,7 +10,7 @@ When `ProjectSync` scans a session (manually or via the Stop hook prompt), it mu
 - External system identifiers (Pixel IDs, account numbers, API endpoints)
 
 **Example:**
-> User said: "The Meta Pixel ID for landing page is 0000000000000000"
+> User said: "The Meta Pixel ID for our landing page is 0000000000000000"
 > Save as: `type: fact, target: docs/reference/EXTERNAL-SYSTEMS.md, content: "Meta Pixel ID for landing page: 0000000000000000"`
 
 ### Type: `rule`
