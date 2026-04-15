@@ -26,9 +26,9 @@ Activate whenever the user runs one of these slash commands or mentions project 
 | `ProjectSetupFix` | Audit and polish an existing project's structure |
 | `ProjectSync` | Unified save + merge: extracts session insights, stages them, merges when safe, surfaces conflicts when not |
 
-The 0.1.x trio (`ProjectSave` / `ProjectMerge` / `ProjectUpdate`) is gone. If the user types one of those names, treat it as `/ProjectSync` — the new command picks the right mode from state (`brain sync plan`).
+If the user types `/ProjectSave`, `/ProjectMerge`, or `/ProjectUpdate`, treat it as `/ProjectSync` — one command covers all three workflows; the mode is picked from state via `brain sync plan`.
 
-The actual command logic lives in `~/.claude/commands/<CommandName>.md` files. This skill provides shared references and templates that the commands use.
+The actual command logic lives in `~/.claude/commands/<CommandName>.md` files. This skill provides shared references and templates the commands use.
 
 ## How the brain works
 

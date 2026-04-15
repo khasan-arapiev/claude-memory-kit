@@ -39,9 +39,9 @@ The result: every new Claude chat starts with a complete, current picture of you
 |---|---|---|
 | `/ProjectNewSetup` | Scaffolds folder structure, `CLAUDE.md`, Security config from scratch | Starting a brand-new project |
 | `/ProjectSetupFix` | Audits docs, fixes orphans, broken routes, oversize files, reports brain health score | Cleaning up or onboarding an existing project |
-| `/ProjectSync` | Extracts session insights, stages them, merges when safe, surfaces conflicts when not | Any time — replaces the old Save / Merge / Update trio |
+| `/ProjectSync` | Extracts session insights, stages them, merges when safe, surfaces conflicts when not | Any time you want to capture what this chat produced |
 
-The unified `/ProjectSync` reads the current pending state from the CLI (`brain sync plan`) and picks the right action automatically: stage-only when other sessions have unmerged items, quick-merge when you're solo, stop-and-ask when items conflict. You can't pick the wrong command because there's only one.
+`/ProjectSync` reads current pending state from the CLI (`brain sync plan`) and picks the right action automatically: stage-only when other sessions have unmerged items, quick-merge when you're solo, stop-and-ask when items conflict.
 
 ---
 
@@ -140,7 +140,7 @@ See `references/hooks.md` for two recommended hooks:
 
 ## Deterministic CLI
 
-Slash commands used to count orphans and score health in prose, which costs tokens and produces variable results. They now call a zero-dependency Python CLI that emits JSON:
+Slash commands call a zero-dependency Python CLI that emits JSON — so state inspection, git checks, and conflict detection are reproducible, not token-heavy prose:
 
 ```bash
 python cli/run.py audit              /path/to/project --json
@@ -199,49 +199,9 @@ See `references/quality-rules.md` for the full rubric.
 
 ## Status & known limitations
 
-**Honest status:** v0.3.0. Every command runs end-to-end on real projects. Foundation is real software (deterministic CLI, 95 tests, cross-platform installers) — not a clever prompt.
+**Status:** v0.3.0. Deterministic CLI, 95 tests, cross-platform installers, zero dependencies. Validated end-to-end on real projects. See [CHANGELOG.md](CHANGELOG.md) for per-release detail.
 
-**What's new in v0.3.0:**
-- `brain pending reject` — CLI helper replaces the prose-only "Claude hand-writes `rejected-*.md`" flow. Conflict losers now have a deterministic home.
-- `brain sync preflight` now echoes `dry_run: true` + returns structured blockers (`{code, message, remedy}`) + `--include-wip` covers untracked files too.
-- Detached HEAD / unborn branch / branch-named-HEAD all correctly distinguished in `git.inspect`.
-- Atomic archive: `os.link → os.unlink` closes the TOCTOU race in `archive_old` for real (was check-then-rename).
-- Stop hook only fires when a recent commit actually touched `docs/` or `CLAUDE.md` — kills the banner-blind problem. Install path overridable via `BRAIN_SKILL_DIR`.
-- Module splits: `git.py`, `session.py`, `archive.py` — `sync.py` is back to planning-only.
-- Dry-run contract defined once up front in `ProjectSync.md` instead of scattered per-step caveats.
-- Back-compat shims removed (pre-release, no external consumers).
-- 95 tests (was 80). New: CRLF via `parse_file`, detached-HEAD detection, structured blockers, atomic collision, rejected-helper.
-
-**What's new in v0.2.2 (patch):**
-- `brain sync preflight` — one CLI call returns session id, full git state (untracked files + in-progress merges/rebases detected), the sync plan, and a go/no-go with blocker list. `/ProjectSync` trusts it.
-- Archive collisions fixed — `archive_old` suffixes `.N` instead of crashing on Windows or silently overwriting on POSIX.
-- `brain sync plan` requires `--session-id` (action) or `--inspect` (read-only). Closes a "forgot the flag → merged wrong session" hole.
-- Non-ADR conflict losers persisted to `docs/.pending/archive/rejected-*.md` (no more silently-lost rules).
-- `--dry-run` specified step-by-step in `ProjectSync.md` (was under-specified in 0.2.1).
-- Stop hook ships as `hooks/stop-prompt.py` — same script on Windows, macOS, Linux.
-- `stale_pending_count` in sync-plan output so `/ProjectSync` auto-suggests archive when old sessions block merge_first.
-- Module splits: `session.py`, `archive.py`, `tests/_helpers.py`. All CLI errors go to stderr consistently.
-- 95 tests (was 73).
-
-**What shipped in v0.2.1:**
-- Git working-tree check before `/ProjectSync` (doc-only — replaced by preflight in 0.2.2).
-- `brain sync new-session-id` replaced the broken-on-macOS shell snippet.
-- `brain pending archive --days N` sweeps stale pending files into an archive folder.
-- Conflict detection no longer hides conflicts involving body-issue items.
-- Docs match code: token-based caps (3000 / 7500), not retired line counts (200 / 500).
-- Single-brace placeholder typos (`{date}` vs `{{date}}`) caught with "did you mean".
-- Plus: CRLF normalisation, tighter `_guard` scope, renamed pending template to `.md`, `__version__` unstuck.
-
-**What shipped in v0.2.0:**
-- `/ProjectSave`, `/ProjectMerge`, `/ProjectUpdate` collapsed into one state-aware `/ProjectSync`.
-- Conflict detection widened to `rule` / `decision` / `correction` (not just decisions).
-- Stricter orphan detection for decisions (requires an explicit route, not a prose mention).
-- Unknown `{{placeholder}}` tokens in pending targets now surface as validation issues.
-- Frontmatter validates known enum values (`status`, `confidence`).
-- IO-error guards on every CLI command — a locked file no longer aborts a whole audit.
-- Query pre-tokenizes chunks — faster on large brains.
-
-**Known limitations** (none are blockers, all are roadmap):
+**Known limitations** (none are blockers; all are roadmap):
 - `brain query` uses TF-IDF, not semantic embeddings. Synonym mismatches happen ("Sentry" vs "error monitoring").
 - `brain drift` is mtime-based, not diff-aware. Whitespace-only edits trigger false drift.
 - `fact` items still stack at the same target without conflict detection (intentional — facts are usually additive).
