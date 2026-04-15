@@ -81,6 +81,26 @@ class TestCLIExitCodes(unittest.TestCase):
             code, _, _ = _run(["sync", "preflight", str(proj)])
             self.assertEqual(code, 0)
 
+    def test_pending_reject_writes_file_and_exits_zero(self):
+        import shutil, tempfile
+        from pathlib import Path as _Path
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = _Path(tmp) / "proj"
+            shutil.copytree(ROOT / "tests" / "fixtures" / "clean", proj)
+            code, _, _ = _run([
+                "pending", "reject", str(proj),
+                "--session-id", "2026-04-15-0900-xxxx",
+                "--type", "rule",
+                "--target", "docs/WRITING-RULES.md",
+                "--winner-id", "y::0",
+                "--body", "Dropped loser body.",
+            ])
+            self.assertEqual(code, 0)
+            rejected = proj / "docs" / ".pending" / "archive" / "rejected-2026-04-15-0900-xxxx.md"
+            self.assertTrue(rejected.exists())
+            text = rejected.read_text(encoding="utf-8")
+            self.assertIn("Dropped loser body.", text)
+
     def test_new_session_id_emits_valid_format(self):
         code, out, _ = _run(["sync", "new-session-id"])
         self.assertEqual(code, 0)

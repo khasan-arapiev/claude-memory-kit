@@ -85,7 +85,7 @@ Located in `templates/`:
 - `CLAUDE-MD-TEMPLATE.md` — full project CLAUDE.md skeleton
 - `CLAUDE-MD-ROUTER-TEMPLATE.md` — router-level CLAUDE.md (just routes to sub-projects)
 - `ADR-TEMPLATE.md` — architecture decision record
-- `PENDING-FILE-TEMPLATE.yaml` — living-docs staging file
+- `PENDING-FILE-TEMPLATE.md` — living-docs staging file (plain markdown, one H2 per item)
 - `SECURITY-CONFIG-TEMPLATE.json` — per-project credentials skeleton
 - `GITIGNORE-TEMPLATE` — workspace-root gitignore patterns
 - `project-types/*.md` — project-type-specific extras (website, saas, ecommerce, client-work, tool)

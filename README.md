@@ -6,7 +6,7 @@ Project Brain is a Claude Code skill that turns any project folder into a self-m
 
 > Built for solo founders, agencies, and teams who want Claude Code to feel like a long-term collaborator, not a forgetful assistant.
 
-**Status:** v0.2.2. Validated end-to-end against a real project. 80 tests passing. See [CHANGELOG.md](CHANGELOG.md) for what's shipped and [the bottom of this README](#status--known-limitations) for honest known limitations.
+**Status:** v0.3.0. Validated end-to-end against a real project. 95 tests passing. See [CHANGELOG.md](CHANGELOG.md) for what's shipped and [the bottom of this README](#status--known-limitations) for honest known limitations.
 
 ---
 
@@ -77,7 +77,7 @@ The installer:
 - Verifies Python 3.10+
 - Copies the skill to `~/.claude/skills/project-brain/`
 - Copies the 3 slash commands to `~/.claude/commands/`
-- Runs the test suite (80 tests, stdlib only)
+- Runs the test suite (95 tests, stdlib only)
 - Prints next steps
 
 Re-run any time to upgrade. The script is idempotent.
@@ -122,7 +122,7 @@ See `references/hooks.md` for two recommended hooks:
     ├── CLAUDE-MD-TEMPLATE.md
     ├── CLAUDE-MD-ROUTER-TEMPLATE.md
     ├── ADR-TEMPLATE.md
-    ├── PENDING-FILE-TEMPLATE.yaml
+    ├── PENDING-FILE-TEMPLATE.md
     ├── SECURITY-CONFIG-TEMPLATE.json
     ├── README-TEMPLATE.md
     ├── GITIGNORE-TEMPLATE
@@ -145,7 +145,7 @@ python cli/run.py sync plan          /path/to/project --session-id <id> --json
 
 **Users never call these directly.** Slash commands invoke the CLI under the hood — same as how Claude already calls Bash for git or file operations. The CLI is the engine; slash commands are the steering wheel.
 
-**Test suite:** `python -m unittest discover tests -v` (80 tests, all stdlib).
+**Test suite:** `python -m unittest discover tests -v` (95 tests, all stdlib).
 
 See `cli/README.md` for the full CLI reference. Planned: `brain impact`, `brain init`.
 
@@ -190,7 +190,18 @@ See `references/quality-rules.md` for the full rubric.
 
 ## Status & known limitations
 
-**Honest status:** v0.2.2. Every command runs end-to-end on real projects. Foundation is real software (deterministic CLI, 80 tests, cross-platform installers) — not a clever prompt.
+**Honest status:** v0.3.0. Every command runs end-to-end on real projects. Foundation is real software (deterministic CLI, 95 tests, cross-platform installers) — not a clever prompt.
+
+**What's new in v0.3.0:**
+- `brain pending reject` — CLI helper replaces the prose-only "Claude hand-writes `rejected-*.md`" flow. Conflict losers now have a deterministic home.
+- `brain sync preflight` now echoes `dry_run: true` + returns structured blockers (`{code, message, remedy}`) + `--include-wip` covers untracked files too.
+- Detached HEAD / unborn branch / branch-named-HEAD all correctly distinguished in `git.inspect`.
+- Atomic archive: `os.link → os.unlink` closes the TOCTOU race in `archive_old` for real (was check-then-rename).
+- Stop hook only fires when a recent commit actually touched `docs/` or `CLAUDE.md` — kills the banner-blind problem. Install path overridable via `BRAIN_SKILL_DIR`.
+- Module splits: `git.py`, `session.py`, `archive.py` — `sync.py` is back to planning-only.
+- Dry-run contract defined once up front in `ProjectSync.md` instead of scattered per-step caveats.
+- Back-compat shims removed (pre-release, no external consumers).
+- 95 tests (was 80). New: CRLF via `parse_file`, detached-HEAD detection, structured blockers, atomic collision, rejected-helper.
 
 **What's new in v0.2.2 (patch):**
 - `brain sync preflight` — one CLI call returns session id, full git state (untracked files + in-progress merges/rebases detected), the sync plan, and a go/no-go with blocker list. `/ProjectSync` trusts it.
@@ -201,7 +212,7 @@ See `references/quality-rules.md` for the full rubric.
 - Stop hook ships as `hooks/stop-prompt.py` — same script on Windows, macOS, Linux.
 - `stale_pending_count` in sync-plan output so `/ProjectSync` auto-suggests archive when old sessions block merge_first.
 - Module splits: `session.py`, `archive.py`, `tests/_helpers.py`. All CLI errors go to stderr consistently.
-- 80 tests (was 73).
+- 95 tests (was 73).
 
 **What shipped in v0.2.1:**
 - Git working-tree check before `/ProjectSync` (doc-only — replaced by preflight in 0.2.2).

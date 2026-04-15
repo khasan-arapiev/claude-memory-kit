@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "cli"))
 sys.path.insert(0, str(ROOT))  # tests._helpers
 
-from brain.sync import inspect_git, preflight, sync_plan  # noqa: E402
+from brain.git import inspect as inspect_git  # noqa: E402
+from brain.sync import preflight, sync_plan  # noqa: E402
 from brain.session import new_session_id  # noqa: E402
 
 from tests._helpers import clone_clean, stage_pending, minimal_item  # noqa: E402
@@ -97,11 +98,53 @@ class TestPreflightBasics(unittest.TestCase):
             proj = clone_clean(Path(tmp))
             pf = preflight(proj)
             self.assertIsNotNone(pf)
-            # No git → ok (there's nothing to be dirty about)
             self.assertTrue(pf.ok)
             self.assertIsNotNone(pf.plan)
             self.assertEqual(pf.plan.mode, "empty")
             self.assertTrue(pf.session_id)
+            self.assertFalse(pf.dry_run)
+
+    def test_preflight_dry_run_echoes_flag(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = clone_clean(Path(tmp))
+            pf = preflight(proj, dry_run=True)
+            self.assertTrue(pf.dry_run)
+
+    def test_preflight_blockers_are_structured(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = clone_clean(Path(tmp))
+            # Make it a git repo with an untracked file
+            subprocess.run(["git", "init", "-q", "-b", "main"], cwd=str(proj), check=True)
+            subprocess.run(["git", "config", "user.email", "t@t"], cwd=str(proj), check=True)
+            subprocess.run(["git", "config", "user.name", "t"], cwd=str(proj), check=True)
+            (proj / "stray.txt").write_text("x", encoding="utf-8")
+            pf = preflight(proj)
+            self.assertFalse(pf.ok)
+            # Each blocker is dict with code/message/remedy
+            self.assertTrue(pf.blockers)
+            for b in pf.blockers:
+                self.assertIn("code", b)
+                self.assertIn("message", b)
+                self.assertIn("remedy", b)
+            # Untracked file is a blocker by default
+            codes = {b["code"] for b in pf.blockers}
+            self.assertIn("untracked_files", codes)
+
+    def test_include_wip_covers_untracked(self):
+        import subprocess
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = clone_clean(Path(tmp))
+            subprocess.run(["git", "init", "-q", "-b", "main"], cwd=str(proj), check=True)
+            subprocess.run(["git", "config", "user.email", "t@t"], cwd=str(proj), check=True)
+            subprocess.run(["git", "config", "user.name", "t"], cwd=str(proj), check=True)
+            (proj / "stray.txt").write_text("x", encoding="utf-8")
+            pf = preflight(proj, include_wip=True)
+            # include-wip must drop the untracked blocker (not just dirty)
+            codes = {b["code"] for b in pf.blockers}
+            self.assertNotIn("untracked_files", codes)
+            self.assertNotIn("dirty_working_tree", codes)
+            self.assertTrue(pf.ok)
 
     def test_preflight_on_missing_project_returns_none(self):
         self.assertIsNone(preflight(ROOT / "cli"))  # no CLAUDE.md there

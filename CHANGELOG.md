@@ -2,6 +2,71 @@
 
 All notable changes to Project Brain. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.3.0] — 2026-04-15
+
+Third independent review cycle surfaced 16 items. All fixed. Theme: turning the remaining prose-only promises into CLI-enforced behaviour, plus the structural cleanup the prior cycles deferred.
+
+### Added — CLI enforcement for the last prose promises
+
+- **`brain pending reject`** — deterministic CLI helper that appends a rejected conflict-loser to `docs/.pending/archive/rejected-<session>.md`. `/ProjectSync` Step 7 now calls this instead of asking Claude to hand-write the file. Closes the "rejected-loser persistence is prose-only" gap from cycle 3.
+- **`brain sync preflight --dry-run`** echoes `dry_run: true` in the output, so the slash command can detect dry-run mode on any re-read of the payload. Dry-run behaviour is now specified once up front in `ProjectSync.md` (Dry-run contract section) instead of scattered per-step caveats.
+- **`--include-wip` now covers untracked files too** (not just dirty working tree). First-time runs in a repo with any new file no longer dead-end.
+- **Structured blockers** — preflight returns `[{code, message, remedy}]` instead of plain strings. `/ProjectSync` prints the `remedy` to the user so they know exactly what to do.
+
+### Added — git inspection improvements
+
+- **Detached HEAD, unborn branch, and "branch named HEAD"** now reliably distinguishable via `symbolic-ref -q HEAD` (was indistinguishable under `rev-parse --abbrev-ref HEAD`). New fields: `git.detached: bool`, `git.unborn: bool`.
+- `git.py` split out of `sync.py` — ~100 lines of subprocess logic lives on its own now.
+
+### Added — race-safe archive
+
+- `archive_old` uses `os.link` → `os.unlink` (atomic on POSIX + Windows) with `FileExistsError` retry instead of the old check-then-rename. Race between two concurrent sweeps is now safe: the loser just gets the next `.N` suffix.
+- Dry-run collision reporting fixed: simulates the suffix bump so two stale files with identical basenames don't both report the same target.
+
+### Added — Stop hook hardening
+
+- Hook now only nudges when the session made commits that *actually touched `docs/` or `CLAUDE.md`*. Unrelated commits (feature work, typo fixes) no longer trigger the prompt — kills the "banner-blind" problem.
+- Install path overridable via `BRAIN_SKILL_DIR` env var (was hardcoded to `~/.claude/skills/project-brain`).
+
+### Added — tests
+
+- 95 total (was 80). New coverage: `inspect_git` on detached HEAD / unborn branch / untracked files; `append_rejected` first call + subsequent appends + missing session-id; atomic archive collision preserves both payloads; preflight `dry_run` echo; `include_wip` covering untracked; `frontmatter.parse_file` on actual CRLF bytes (closes the "CRLF fix unverified" finding from cycle 3).
+- New test files: `tests/test_git.py`, `tests/test_crlf.py`.
+
+### Removed — back-compat shims
+
+- `pending.archive_old` forwarder deleted. Import from `brain.archive` instead.
+- `sync.new_session_id` re-export deleted. Import from `brain.session` instead.
+
+Pre-release software, no external consumers — the shims were dead weight hiding the real imports.
+
+### Changed — module layout
+
+```
+cli/brain/
+  __init__.py, audit.py, cli.py, decisions.py, drift.py, frontmatter.py,
+  project.py, query.py,
+  # new in 0.3:
+  archive.py    # lifecycle (archive_old, append_rejected)
+  git.py        # subprocess wrapping (inspect, GitState)
+  pending.py    # parse + conflicts + render
+  session.py    # new_session_id only
+  sync.py       # SyncPlan, sync_plan, Preflight, preflight, rendering
+```
+
+### Fixed — small polish
+
+- `_cmd_sync_new_id` now `@_guard`-wrapped for consistency with every other handler.
+- `sync_plan` no longer walks the pending dir twice (stale count now inline, single pass).
+- `cli.py` `import json` moved to the top-of-module stdlib group.
+- Dead `_read_claude_md` helper removed; `detect()` uses `read_md` directly.
+- `SKILL.md:88` + `README.md:125` referenced the retired `PENDING-FILE-TEMPLATE.yaml`. Fixed.
+- Redundant "asdict handles nesting" comments consolidated.
+
+### Minor version bump
+
+v0.3.0 instead of v0.2.3 because the back-compat-shim removal is technically a breaking change for anyone who imported from the old module paths (no external consumers exist, but the versioning should reflect reality).
+
 ## [0.2.2] — 2026-04-15
 
 Second independent review cycle surfaced 14 more items. This patch ships all of them. Focus: moving enforcement out of prose and into the CLI, so the v0.2.1 safety claims actually hold.

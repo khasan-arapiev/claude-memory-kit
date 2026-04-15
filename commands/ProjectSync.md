@@ -10,8 +10,21 @@ Bring the project brain up to date in one command. You handle the judgment half 
 
 ## Flags the user can pass
 
-- `--dry-run` — print every write and commit that *would* happen; touch nothing on disk or in git.
-- `--include-wip` — proceed even if the git working tree has uncommitted unrelated changes. Untracked files and in-progress git operations are still blockers.
+- `--dry-run` — print every write and commit that *would* happen; touch nothing on disk or in git. See the **Dry-run contract** section below for exactly which steps are skipped.
+- `--include-wip` — proceed even if the git working tree has uncommitted or untracked changes. Only in-progress git operations (merge/rebase/cherry-pick/bisect) remain blockers — those represent broken states and would corrupt history if the Sync writes on top.
+
+## Dry-run contract (single source of truth)
+
+When the user passes `--dry-run`, preflight echoes `dry_run: true` in its JSON. Every write-shaped step below is **skipped**; only plan output and CLI reads run. Specifically:
+
+- Step 6.1 (stage pending file) — **skipped**.
+- Step 6.4 (Edit / create target files / update CLAUDE.md routing) — **skipped**; print what *would* be edited.
+- Step 6.5 (commit each target) — **skipped**; print the intended commit message.
+- Step 6.6 (delete pending, commit clear) — **skipped**.
+- Step 7 (append to `rejected-*.md` via `brain pending reject`) — **skipped**; print the intended args.
+- Step 6.7 (`brain audit` re-run) — **runs** (read-only).
+
+At the end of a dry run, print: *"Dry run complete. No files or commits touched. Re-run without `--dry-run` to apply."*
 
 ## Required references
 
@@ -30,17 +43,19 @@ Check current directory for `CLAUDE.md` with `<!-- project-brain: managed -->`. 
 One CLI call gives you session id, git state, and the sync plan:
 
 ```bash
-python "$HOME/.claude/skills/project-brain/cli/run.py" sync preflight "$(pwd)" --json ${INCLUDE_WIP:+--include-wip}
+python "$HOME/.claude/skills/project-brain/cli/run.py" sync preflight "$(pwd)" --json \
+  ${INCLUDE_WIP:+--include-wip} ${DRY_RUN:+--dry-run}
 ```
 
 The JSON has:
 - `ok` — true when it's safe to proceed.
 - `session_id` — use this for the rest of the run. Do NOT generate your own.
-- `git.{initialised, clean, operation_in_progress, branch, dirty_paths, untracked_paths}`
+- `dry_run` — echo of the flag so re-reads of the payload know the mode.
+- `git.{initialised, clean, branch, detached, unborn, operation_in_progress, dirty_paths, untracked_paths}`
 - `plan.{mode, pending_total, stale_pending_count, conflicts, ...}` — full `sync_plan` output.
-- `blockers[]` — human-readable reasons why `ok` is false.
+- `blockers[]` — structured `{code, message, remedy}` per blocker.
 
-If `ok: false`, abort and print each blocker. Do not try to "work around" a blocker by editing files — each one represents a real safety risk the CLI identified. The user can re-run with `--include-wip` if their uncommitted changes are intentional WIP.
+If `ok: false`, print each blocker AND its `remedy` string to the user. The remedy tells them exactly what to do (e.g. `git stash` / `--include-wip` / abort the merge). Do not try to edit files to "work around" a blocker.
 
 If `git.initialised: false`, `ok` can still be true — you'll stage files and skip commit steps later. Tell the user at the end so they can `git init` if they want history.
 
@@ -50,7 +65,15 @@ If `plan.stale_pending_count > 0`, tell the user once (before extracting) and of
 
 > `N` pending file(s) are older than 14 days. These often block `/ProjectSync` as `merge_first` forever. Archive them? (y/n)
 
-If yes, run `brain pending archive "$(pwd)" --days 14` and re-run preflight (the plan will change).
+If the user says **yes**: run `brain pending archive "$(pwd)" --days 14`. Then refresh the plan — but NOT the full preflight, because that would mint a new session id. Run only:
+
+```bash
+python "$HOME/.claude/skills/project-brain/cli/run.py" sync plan "$(pwd)" --session-id "$session_id" --json
+```
+
+and use the new `plan.mode` for Step 4. Keep the original `session_id` from Step 2.
+
+If the user says **no**: proceed with the existing plan (it will most likely be `merge_first`). The Step 4 `merge_first` branch explains what happens next.
 
 ## Step 4 — Act on the plan mode
 
@@ -110,29 +133,23 @@ Then stop.
 
 ### Mode: `empty`, `quick`, or `resolve_conflicts` (after conflicts resolved)
 
-Full merge pipeline. **Every write in this pipeline is skipped when `--dry-run` is set; only the plan is printed.**
+Full merge pipeline. Dry-run skip rules are defined once up front in the **Dry-run contract** section — follow those instead of scattered per-step caveats.
 
-1. **Stage** — write `docs/.pending/${session_id}.md` with this session's items (if any). Skip under `--dry-run`.
+1. **Stage** — write `docs/.pending/${session_id}.md` with this session's items (if any).
 2. **Pull full item set**: `brain pending list "$(pwd)" --json`.
 3. **Group by target**, dedup identical bodies, surface paraphrase/semantic clashes to the user.
 4. **For each target**:
-   - Existing file: `brain query "<topic>"` → find the right section → Edit append/update. Under `--dry-run`, print the intended edit without applying.
-   - Missing file: create it. Add a routing entry to `CLAUDE.md` (respect the 3000-token cap from `quality-rules.md`). Under `--dry-run`, print the intended paths + routing line.
+   - Existing file: `brain query "<topic>"` → find the right section → Edit append/update.
+   - Missing file: create it. Add a routing entry to `CLAUDE.md` (respect the 3000-token cap from `quality-rules.md`).
    - Missing ADR: use `ADR-TEMPLATE.md`; filename `YYYY-MM-DD-KEBAB-TITLE.md` under `docs/decisions/`.
-5. **Commit each target**: `sync: <type> -> <relative-path>`. Under `--dry-run`, print the intended commit message instead.
+5. **Commit each target**: `sync: <type> -> <relative-path>`.
 6. **Delete ONLY the current session's pending file** once all its items have been applied:
    ```bash
    rm "docs/.pending/${session_id}.md"
    git rm "docs/.pending/${session_id}.md" 2>/dev/null
    ```
-   Do NOT touch other sessions' pending files. Commit: `sync: clear pending ${session_id}`. Under `--dry-run`, skip.
-7. **Re-audit** (both live and dry-run): `brain audit "$(pwd)"` — include health score delta in the final report.
-
-### Dry-run summary rule
-
-Under `--dry-run`, at the end, remind the user:
-
-> Dry run complete. No files or commits touched. Re-run without `--dry-run` to apply.
+   Do NOT touch other sessions' pending files. Commit: `sync: clear pending ${session_id}`.
+7. **Re-audit** (always runs): `brain audit "$(pwd)"` — include health score delta in the final report.
 
 ## Step 7 — Conflict resolution prompt
 
@@ -159,26 +176,23 @@ Pick: A, B, both, or skip.
 
 ADR targets have an "Alternatives considered" section — put the loser there in full.
 
-For **non-ADR targets** (rules, corrections), the pending file will be deleted in Step 6.6. The commit message alone isn't a safe home for the loser (200-char truncation). Before deletion, append the full loser to:
+For **non-ADR targets** (rules, corrections), the pending file will be deleted in Step 6.6, and a truncated commit message is not a safe home for the loser. Use the deterministic CLI helper — it appends to `docs/.pending/archive/rejected-${session_id}.md` with a consistent header format and exits non-zero on failure, so the loser is guaranteed persisted before you move on:
 
-```
-docs/.pending/archive/rejected-${session_id}.md
-```
-
-Header format:
-
-```markdown
-# Rejected during /ProjectSync ${session_id}
-
-## <type> targeting <target path>
-
-<full loser body>
-
-**Rejected in favour of:** <winner item-id>
-**Date:** <ISO date>
+```bash
+python "$HOME/.claude/skills/project-brain/cli/run.py" pending reject "$(pwd)" \
+  --session-id "$session_id" \
+  --type "<rule|fact|decision|correction>" \
+  --target "<target path>" \
+  --winner-id "<winning item id>" \
+  --body "$(cat <<'EOF'
+<full loser body here, multi-line supported>
+EOF
+)"
 ```
 
-This archive is committed alongside the sync: `sync: archive rejected -> docs/.pending/archive/rejected-${session_id}.md`.
+Call this once per rejected loser, BEFORE Step 6.6 deletes the session's pending file. Under `--dry-run` skip the call and print the intended args instead.
+
+The archive file is committed alongside the sync: `sync: archive rejected -> docs/.pending/archive/rejected-${session_id}.md`.
 
 ## Step 8 — Report
 

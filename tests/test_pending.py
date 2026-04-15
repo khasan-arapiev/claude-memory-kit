@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "cli"))
 sys.path.insert(0, str(ROOT))  # tests._helpers
 
-from brain.archive import archive_old  # noqa: E402
+from brain.archive import append_rejected, archive_old  # noqa: E402
 from brain.pending import detect_conflicts, list_pending  # noqa: E402
 
 from tests._helpers import clone_clean, stage_pending  # noqa: E402
@@ -212,30 +212,93 @@ class TestPendingArchive(unittest.TestCase):
             self.assertEqual(result["archived"], 1)
             self.assertTrue(old.exists(), "dry-run must not move files")
 
-    def test_archive_collision_uses_unique_suffix(self):
-        """If archive/<name> already exists, rename to <name>.1 instead of
-        crashing on Windows or silently overwriting on POSIX."""
+
+
+class TestAppendRejected(unittest.TestCase):
+    """Deterministic CLI helper for non-ADR conflict losers. Replaces the
+    prose-only "Claude writes rejected-*.md" story from v0.2.2 spec."""
+
+    def test_creates_file_with_header_on_first_call(self):
         with tempfile.TemporaryDirectory() as tmp:
             proj = clone_clean(Path(tmp))
-            # Pre-populate archive/ with a colliding file.
+            result = append_rejected(
+                proj, session_id="2026-04-15-0900-abcd",
+                type_="rule", target="docs/WRITING-RULES.md",
+                body="Never use em dashes.", winner_id="session-x::0",
+            )
+            self.assertIn("path", result)
+            p = proj / result["path"]
+            self.assertTrue(p.exists())
+            text = p.read_text(encoding="utf-8")
+            self.assertIn("# Rejected during /ProjectSync 2026-04-15-0900-abcd", text)
+            self.assertIn("## rule targeting docs/WRITING-RULES.md", text)
+            self.assertIn("Never use em dashes.", text)
+            self.assertIn("**Rejected in favour of:** session-x::0", text)
+
+    def test_second_call_appends_without_re_header(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = clone_clean(Path(tmp))
+            append_rejected(
+                proj, session_id="s", type_="rule", target="a.md",
+                body="Body A", winner_id="x::0",
+            )
+            append_rejected(
+                proj, session_id="s", type_="correction", target="b.md",
+                body="Body B", winner_id="y::0",
+            )
+            p = proj / "docs" / ".pending" / "archive" / "rejected-s.md"
+            text = p.read_text(encoding="utf-8")
+            # Exactly one header, both items present
+            self.assertEqual(text.count("# Rejected during /ProjectSync"), 1)
+            self.assertIn("Body A", text)
+            self.assertIn("Body B", text)
+
+    def test_missing_session_id_errors(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = clone_clean(Path(tmp))
+            result = append_rejected(
+                proj, session_id="", type_="rule", target="a.md",
+                body="x", winner_id="y",
+            )
+            self.assertEqual(result.get("error"), "missing_session_id")
+
+
+class TestArchiveAtomicCollision(unittest.TestCase):
+    """Archive must use os.link→unlink so concurrent sweeps don't clobber.
+
+    We can't easily simulate the race in unittest, but we can prove the
+    collision path uses `.N` suffixes and preserves both payloads.
+    """
+
+    def test_concurrent_collision_preserves_both_contents(self):
+        import os
+        import time
+
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = clone_clean(Path(tmp))
             archive = proj / "docs" / ".pending" / "archive"
             archive.mkdir(parents=True, exist_ok=True)
-            collider = archive / "2020-01-01-0000-oooo.md"
-            collider.write_text("# already archived\n", encoding="utf-8")
 
-            old = stage_pending(
-                proj, "2020-01-01-0000-oooo",
-                "# New version\n\n## fact\n**target:** x.md\n**confidence:** high\n\nX\n",
+            # Pre-existing archive file with distinctive content
+            collider = archive / "2020-01-01-0000-aaaa.md"
+            collider.write_text("OLD-CONTENT", encoding="utf-8")
+
+            # New file with same basename, to be archived
+            new_file = stage_pending(
+                proj, "2020-01-01-0000-aaaa",
+                "NEW-CONTENT\n",
             )
-            self._backdate(old, 30)
+            past = time.time() - 30 * 86400
+            os.utime(new_file, (past, past))
 
             result = archive_old(proj, days=14, dry_run=False)
             self.assertEqual(result["archived"], 1)
-            self.assertTrue(collider.exists(), "prior archive must not be overwritten")
-            self.assertTrue(
-                (archive / "2020-01-01-0000-oooo.1.md").exists(),
-                "collision must produce a suffixed filename",
-            )
+            # Old content still intact at original name
+            self.assertEqual(collider.read_text(encoding="utf-8"), "OLD-CONTENT")
+            # New content landed at .1 suffix
+            suffixed = archive / "2020-01-01-0000-aaaa.1.md"
+            self.assertTrue(suffixed.exists())
+            self.assertIn("NEW-CONTENT", suffixed.read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":

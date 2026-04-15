@@ -32,13 +32,6 @@ from pathlib import Path
 from .project import detect, read_md
 
 
-# Back-compat re-export: `archive_old` moved to `brain.archive` in v0.2.2
-# but consumers importing it from `brain.pending` still work.
-def archive_old(*args, **kwargs):
-    from .archive import archive_old as _impl
-    return _impl(*args, **kwargs)
-
-
 VALID_TYPES = {"rule", "fact", "decision", "correction"}
 VALID_CONFIDENCE = {"high", "medium", "low"}
 # Placeholders allowed inside `target:` fields. Expanded at merge time by the

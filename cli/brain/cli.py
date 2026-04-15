@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -14,6 +15,7 @@ for stream in (sys.stdout, sys.stderr):
         pass
 
 from . import __version__
+from .archive import append_rejected, archive_old
 from .audit import audit, render_human, render_json
 from .decisions import (
     list_decisions,
@@ -23,7 +25,6 @@ from .decisions import (
 )
 from .drift import drift, render_human as drift_human, render_json as drift_json
 from .pending import (
-    archive_old,
     detect_conflicts,
     list_pending,
     render_human as pending_human,
@@ -34,10 +35,8 @@ from .query import (
     render_human as query_human,
     render_json as query_json,
 )
-import json
-
+from .session import new_session_id
 from .sync import (
-    new_session_id,
     preflight,
     render_human as sync_human,
     render_json as sync_json,
@@ -117,6 +116,24 @@ def main(argv: list[str] | None = None) -> int:
     pending_list.add_argument("path", nargs="?", default=".", help="Project root")
     pending_list.add_argument("--json", action="store_true")
 
+    pending_reject = pending_sub.add_parser(
+        "reject",
+        help="Append a rejected conflict-loser to docs/.pending/archive/rejected-<session>.md.",
+    )
+    pending_reject.add_argument("path", nargs="?", default=".", help="Project root")
+    pending_reject.add_argument("--session-id", required=True,
+                                help="Session id that rejected this loser.")
+    pending_reject.add_argument("--type", dest="type_", required=True,
+                                choices=["rule", "fact", "decision", "correction"])
+    pending_reject.add_argument("--target", required=True,
+                                help="Target doc path that the winner claimed.")
+    pending_reject.add_argument("--winner-id", required=True,
+                                help="Item id of the winning item (for traceability).")
+    pending_reject.add_argument("--body", required=True,
+                                help="Full body of the losing item. Use a heredoc or $(cat) "
+                                     "from the slash command so multi-line bodies survive.")
+    pending_reject.add_argument("--json", action="store_true")
+
     pending_archive = pending_sub.add_parser(
         "archive",
         help="Move stale pending files (older than --days) into docs/.pending/archive/.",
@@ -162,8 +179,13 @@ def main(argv: list[str] | None = None) -> int:
     sync_preflight_p.add_argument("path", nargs="?", default=".", help="Project root")
     sync_preflight_p.add_argument(
         "--include-wip", action="store_true",
-        help="Allow running with uncommitted working-tree changes (untracked and "
-             "in-progress ops are still blockers).",
+        help="Allow running with uncommitted OR untracked files (but not "
+             "in-progress merge/rebase/cherry-pick/bisect — those are still blockers).",
+    )
+    sync_preflight_p.add_argument(
+        "--dry-run", action="store_true",
+        help="Mark this run as dry-run. Echoed in the preflight payload so "
+             "the slash command can honour the flag in its prose steps.",
     )
     sync_preflight_p.add_argument("--json", action="store_true")
 
@@ -199,6 +221,16 @@ def main(argv: list[str] | None = None) -> int:
                 dry_run=args.dry_run,
                 json_output=args.json,
             )
+        if args.pending_command == "reject":
+            return _cmd_pending_reject(
+                Path(args.path),
+                session_id=args.session_id,
+                type_=args.type_,
+                target=args.target,
+                winner_id=args.winner_id,
+                body=args.body,
+                json_output=args.json,
+            )
     if args.command == "sync":
         if args.sync_command == "plan":
             sid = "" if args.inspect else (args.session_id or "")
@@ -211,6 +243,7 @@ def main(argv: list[str] | None = None) -> int:
             return _cmd_sync_preflight(
                 Path(args.path),
                 include_wip=args.include_wip,
+                dry_run=args.dry_run,
                 json_output=args.json,
             )
         if args.sync_command == "new-session-id":
@@ -318,6 +351,7 @@ def _cmd_pending_archive(path: Path, days: int, dry_run: bool, json_output: bool
     return 0
 
 
+@_guard
 def _cmd_sync_new_id(json_output: bool) -> int:
     sid = new_session_id()
     if json_output:
@@ -328,14 +362,45 @@ def _cmd_sync_new_id(json_output: bool) -> int:
 
 
 @_guard
-def _cmd_sync_preflight(path: Path, include_wip: bool, json_output: bool) -> int:
-    pf = preflight(path, include_wip=include_wip)
+def _cmd_sync_preflight(
+    path: Path, include_wip: bool, dry_run: bool, json_output: bool,
+) -> int:
+    pf = preflight(path, include_wip=include_wip, dry_run=dry_run)
     if pf is None:
         _no_brain(path, json_output)
         return 2
     print(render_preflight_json(pf) if json_output else render_preflight_human(pf))
     # Non-zero when the slash command should NOT proceed to merge.
     return 0 if pf.ok else 1
+
+
+@_guard
+def _cmd_pending_reject(
+    path: Path,
+    session_id: str,
+    type_: str,
+    target: str,
+    winner_id: str,
+    body: str,
+    json_output: bool,
+) -> int:
+    result = append_rejected(
+        path, session_id=session_id, type_=type_,
+        target=target, body=body, winner_id=winner_id,
+    )
+    if "error" in result:
+        if result["error"] == "no_claude_md":
+            _no_brain(path, json_output)
+            return 2
+        # Unknown error payload — print it to stderr so callers see it.
+        print(f"brain: {result['error']}", file=sys.stderr)
+        return 3
+    if json_output:
+        print(json.dumps(result, indent=2))
+    else:
+        print(f"Rejected item appended to {result['path']} "
+              f"({result['bytes_written']} bytes)")
+    return 0
 
 
 @_guard
