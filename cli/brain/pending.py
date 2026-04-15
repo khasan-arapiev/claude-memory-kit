@@ -27,10 +27,16 @@ import json
 import re
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timedelta
 from pathlib import Path
 
 from .project import detect, read_md
+
+
+# Back-compat re-export: `archive_old` moved to `brain.archive` in v0.2.2
+# but consumers importing it from `brain.pending` still work.
+def archive_old(*args, **kwargs):
+    from .archive import archive_old as _impl
+    return _impl(*args, **kwargs)
 
 
 VALID_TYPES = {"rule", "fact", "decision", "correction"}
@@ -217,45 +223,6 @@ def _parse_pending_file(path: Path, project_root: Path) -> list[PendingItem]:
 
         items.append(item)
     return items
-
-
-def archive_old(root: Path, days: int = 14, dry_run: bool = False) -> dict:
-    """Move pending files older than `days` into docs/.pending/archive/.
-
-    Stale pending files block `/ProjectSync` forever in `merge_first` mode
-    because they get counted as "other session" items. After a couple of
-    weeks with no review they're almost always abandoned. This gives the
-    user a safe way to sweep them aside without deleting anything.
-
-    Returns a dict with `scanned`, `archived`, `kept`, `moved_paths`.
-    """
-    project = detect(root)
-    if project is None:
-        return {"error": "no_claude_md", "scanned": 0, "archived": 0, "kept": 0, "moved_paths": []}
-
-    pending_dir = _find_pending_dir(project.root)
-    if pending_dir is None or not pending_dir.is_dir():
-        return {"scanned": 0, "archived": 0, "kept": 0, "moved_paths": []}
-
-    archive_dir = pending_dir / "archive"
-    cutoff = datetime.now() - timedelta(days=days)
-    scanned = archived = kept = 0
-    moved: list[str] = []
-
-    for file in sorted(pending_dir.glob("*.md")):
-        scanned += 1
-        mtime = datetime.fromtimestamp(file.stat().st_mtime)
-        if mtime >= cutoff:
-            kept += 1
-            continue
-        archived += 1
-        target = archive_dir / file.name
-        moved.append(str(target.relative_to(project.root).as_posix()))
-        if not dry_run:
-            archive_dir.mkdir(parents=True, exist_ok=True)
-            file.rename(target)
-
-    return {"scanned": scanned, "archived": archived, "kept": kept, "moved_paths": moved}
 
 
 def render_human(items: list[PendingItem], conflicts: list[Conflict] | None = None) -> str:

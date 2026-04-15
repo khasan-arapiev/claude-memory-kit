@@ -6,7 +6,7 @@ Project Brain is a Claude Code skill that turns any project folder into a self-m
 
 > Built for solo founders, agencies, and teams who want Claude Code to feel like a long-term collaborator, not a forgetful assistant.
 
-**Status:** v0.2.1. Validated end-to-end against a real project. 73 tests passing. See [CHANGELOG.md](CHANGELOG.md) for what's shipped and [the bottom of this README](#status--known-limitations) for honest known limitations.
+**Status:** v0.2.2. Validated end-to-end against a real project. 80 tests passing. See [CHANGELOG.md](CHANGELOG.md) for what's shipped and [the bottom of this README](#status--known-limitations) for honest known limitations.
 
 ---
 
@@ -77,7 +77,7 @@ The installer:
 - Verifies Python 3.10+
 - Copies the skill to `~/.claude/skills/project-brain/`
 - Copies the 3 slash commands to `~/.claude/commands/`
-- Runs the test suite (73 tests, stdlib only)
+- Runs the test suite (80 tests, stdlib only)
 - Prints next steps
 
 Re-run any time to upgrade. The script is idempotent.
@@ -145,7 +145,7 @@ python cli/run.py sync plan          /path/to/project --session-id <id> --json
 
 **Users never call these directly.** Slash commands invoke the CLI under the hood — same as how Claude already calls Bash for git or file operations. The CLI is the engine; slash commands are the steering wheel.
 
-**Test suite:** `python -m unittest discover tests -v` (73 tests, all stdlib).
+**Test suite:** `python -m unittest discover tests -v` (80 tests, all stdlib).
 
 See `cli/README.md` for the full CLI reference. Planned: `brain impact`, `brain init`.
 
@@ -190,18 +190,27 @@ See `references/quality-rules.md` for the full rubric.
 
 ## Status & known limitations
 
-**Honest status:** v0.2.1. Every command runs end-to-end on real projects. Foundation is real software (deterministic CLI, 73 tests, cross-platform installers) — not a clever prompt.
+**Honest status:** v0.2.2. Every command runs end-to-end on real projects. Foundation is real software (deterministic CLI, 80 tests, cross-platform installers) — not a clever prompt.
 
-**What's new in v0.2.1 (patch):**
-- Git working-tree check before `/ProjectSync` makes commits.
-- `brain sync new-session-id` replaces the shell-specific session id snippet (was broken on macOS).
+**What's new in v0.2.2 (patch):**
+- `brain sync preflight` — one CLI call returns session id, full git state (untracked files + in-progress merges/rebases detected), the sync plan, and a go/no-go with blocker list. `/ProjectSync` trusts it.
+- Archive collisions fixed — `archive_old` suffixes `.N` instead of crashing on Windows or silently overwriting on POSIX.
+- `brain sync plan` requires `--session-id` (action) or `--inspect` (read-only). Closes a "forgot the flag → merged wrong session" hole.
+- Non-ADR conflict losers persisted to `docs/.pending/archive/rejected-*.md` (no more silently-lost rules).
+- `--dry-run` specified step-by-step in `ProjectSync.md` (was under-specified in 0.2.1).
+- Stop hook ships as `hooks/stop-prompt.py` — same script on Windows, macOS, Linux.
+- `stale_pending_count` in sync-plan output so `/ProjectSync` auto-suggests archive when old sessions block merge_first.
+- Module splits: `session.py`, `archive.py`, `tests/_helpers.py`. All CLI errors go to stderr consistently.
+- 80 tests (was 73).
+
+**What shipped in v0.2.1:**
+- Git working-tree check before `/ProjectSync` (doc-only — replaced by preflight in 0.2.2).
+- `brain sync new-session-id` replaced the broken-on-macOS shell snippet.
 - `brain pending archive --days N` sweeps stale pending files into an archive folder.
 - Conflict detection no longer hides conflicts involving body-issue items.
-- Empty `--session-id` now behaves correctly (single session → quick, multi → merge_first).
-- Docs now match the code: token-based caps (3000 / 7500), not the retired line counts (200 / 500).
-- Stop hook redesigned to actually fire after `/ProjectSync` commits atomically.
-- Single-brace placeholder typos (`{date}` vs `{{date}}`) caught with a "did you mean" hint.
-- Plus: CRLF normalisation, tighter `_guard` scope, renamed pending template to `.md`, 21 new tests, `__version__` unstuck.
+- Docs match code: token-based caps (3000 / 7500), not retired line counts (200 / 500).
+- Single-brace placeholder typos (`{date}` vs `{{date}}`) caught with "did you mean".
+- Plus: CRLF normalisation, tighter `_guard` scope, renamed pending template to `.md`, `__version__` unstuck.
 
 **What shipped in v0.2.0:**
 - `/ProjectSave`, `/ProjectMerge`, `/ProjectUpdate` collapsed into one state-aware `/ProjectSync`.

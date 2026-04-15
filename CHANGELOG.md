@@ -2,6 +2,68 @@
 
 All notable changes to Project Brain. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.2.2] — 2026-04-15
+
+Second independent review cycle surfaced 14 more items. This patch ships all of them. Focus: moving enforcement out of prose and into the CLI, so the v0.2.1 safety claims actually hold.
+
+### Added — `brain sync preflight`
+
+One CLI call returns `session_id`, full git state (including untracked files and in-progress operations), the sync plan, and a pass/fail with blocker list. `/ProjectSync` Step 2 now calls this instead of reimplementing a partial git check in bash. Moves the safety policy out of the slash command and into Python.
+
+- Detects merge / rebase / cherry-pick / bisect in progress (was missed in 0.2.1's `git diff --quiet`).
+- Detects untracked files (was missed).
+- Surfaces current branch.
+- Optional `--include-wip` downgrades "dirty working tree" from blocker to warning for users with intentional WIP. Untracked files and in-progress ops remain blockers.
+
+### Added — archive lifecycle
+
+- **`brain sync plan` now includes `stale_pending_count`** so `/ProjectSync` can surface `brain pending archive --days 14` when the user hits `merge_first` because of old forgotten sessions (not their own).
+- **Archive collision safety.** `archive_old` now appends `.1`, `.2`, ... suffixes when the archive file already exists. Previously raised `FileExistsError` on Windows and silently overwrote on POSIX.
+- **Test fixture** covers the collision path.
+
+### Added — `brain sync plan --inspect`
+
+`--session-id` is now required for action-taking callers. `--inspect` exists for read-only human shell inspection (emits a session-agnostic snapshot). Prevents the "forgot to pass session_id → CLI recommends `quick` → wrong session's items get merged" failure mode.
+
+### Added — non-ADR conflict persistence
+
+Losing items in rule/correction conflicts used to be dropped entirely (ADR winners got an "Alternatives considered" home; non-ADR winners did not). `/ProjectSync` now appends full losing bodies to `docs/.pending/archive/rejected-${session_id}.md` before deleting the pending file, so rejected knowledge is recoverable.
+
+### Fixed — CRLF was half-a-fix in 0.2.1
+
+`frontmatter.parse_file` bypassed `read_md`, so the CRLF normalisation didn't actually reach decisions or drift. Both now route through `read_md`, and the redundant inner `_read_claude_md` was removed.
+
+### Fixed — `--dry-run` was under-specified in 0.2.1
+
+ProjectSync.md Step 6.1 said "Stage first (all modes)" without a dry-run escape. Every write step in the new Step 6 now has an explicit "skip under `--dry-run`" clause, plus a closing summary that reminds the user no files or commits were touched.
+
+### Fixed — Stop hook cross-platform
+
+The v0.2.1 one-liner (nested `python -c` inside bash inside JSON) broke on PowerShell. Stop hook now ships as a proper Python script at `hooks/stop-prompt.py` — same on every OS.
+
+### Changed — module boundaries
+
+- **`new_session_id` moved from `sync.py` to a new `session.py`** (it has nothing to do with planning). Re-exported from `sync` for back-compat.
+- **`archive_old` moved from `pending.py` to a new `archive.py`** (filesystem lifecycle, not parse logic). Back-compat re-exported via `pending.archive_old`.
+- **`_stage_pending` / `clone_clean` / `minimal_item`** extracted to `tests/_helpers.py`. Every test file now uses them instead of inlining setup.
+
+### Fixed — consistency
+
+- All CLI errors (human and `--json`) now emit to **stderr**. Stdout is reserved for pipeable payloads.
+- `_cmd_pending_archive` and `_cmd_sync_new_id` use the top-level `json` import instead of local `import json as _json`.
+- `read_md` narrowed to catch only `OSError` (was `OSError | ValueError`). Programmer errors now bubble up as tracebacks, matching the new `_guard` philosophy in 0.2.1.
+- Unused `datetime` / `timedelta` imports removed.
+
+### Added — tests
+
+- 80 total (73 → 80). New coverage:
+  - `preflight` returns a plan on clean fixtures.
+  - `preflight` on missing project returns None.
+  - `inspect_git` detects absence of git cleanly.
+  - `sync plan` `--inspect` works; missing both `--session-id` and `--inspect` exits 2 via argparse.
+  - `archive_old` collision uses `.N` suffix and preserves prior archive.
+  - All test files share `tests/_helpers.py`.
+
 ## [0.2.1] — 2026-04-15
 
 Triple independent code review found 20+ issues in v0.2.0. This patch ships all of them.

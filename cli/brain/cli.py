@@ -34,10 +34,15 @@ from .query import (
     render_human as query_human,
     render_json as query_json,
 )
+import json
+
 from .sync import (
     new_session_id,
+    preflight,
     render_human as sync_human,
     render_json as sync_json,
+    render_preflight_human,
+    render_preflight_json,
     sync_plan,
 )
 
@@ -134,14 +139,33 @@ def main(argv: list[str] | None = None) -> int:
     sync_sub = sync_p.add_subparsers(dest="sync_command", required=True)
     sync_plan_p = sync_sub.add_parser(
         "plan",
-        help="Inspect docs/.pending/ and emit the recommended action for this session.",
+        help="Recommend an action for /ProjectSync. Requires --session-id or --inspect.",
     )
     sync_plan_p.add_argument("path", nargs="?", default=".", help="Project root")
-    sync_plan_p.add_argument(
-        "--session-id", default="",
-        help="Current session id. When unset, mode is computed session-agnostic.",
+    # session-id is effectively required for action-taking callers. --inspect
+    # exists for read-only human inspection (where there's no session to claim).
+    plan_src = sync_plan_p.add_mutually_exclusive_group(required=True)
+    plan_src.add_argument(
+        "--session-id", default=None,
+        help="Current session id. Required unless --inspect.",
+    )
+    plan_src.add_argument(
+        "--inspect", action="store_true",
+        help="Session-agnostic read-only snapshot. /ProjectSync never uses this.",
     )
     sync_plan_p.add_argument("--json", action="store_true")
+
+    sync_preflight_p = sync_sub.add_parser(
+        "preflight",
+        help="One-shot safety check for /ProjectSync: git state + session id + plan.",
+    )
+    sync_preflight_p.add_argument("path", nargs="?", default=".", help="Project root")
+    sync_preflight_p.add_argument(
+        "--include-wip", action="store_true",
+        help="Allow running with uncommitted working-tree changes (untracked and "
+             "in-progress ops are still blockers).",
+    )
+    sync_preflight_p.add_argument("--json", action="store_true")
 
     sync_newid_p = sync_sub.add_parser(
         "new-session-id",
@@ -177,9 +201,16 @@ def main(argv: list[str] | None = None) -> int:
             )
     if args.command == "sync":
         if args.sync_command == "plan":
+            sid = "" if args.inspect else (args.session_id or "")
             return _cmd_sync_plan(
                 Path(args.path),
-                session_id=args.session_id,
+                session_id=sid,
+                json_output=args.json,
+            )
+        if args.sync_command == "preflight":
+            return _cmd_sync_preflight(
+                Path(args.path),
+                include_wip=args.include_wip,
                 json_output=args.json,
             )
         if args.sync_command == "new-session-id":
@@ -192,11 +223,9 @@ def main(argv: list[str] | None = None) -> int:
 def _cmd_audit(path: Path, json_output: bool) -> int:
     report = audit(path)
     if report is None:
-        msg = f"No CLAUDE.md found at {path.resolve()}. Run /ProjectNewSetup first."
-        if json_output:
-            print('{"error": "no_claude_md", "path": "%s"}' % path.resolve())
-        else:
-            print(msg, file=sys.stderr)
+        # Errors go to stderr in both human and JSON modes — stdout stays
+        # reserved for the report payload so callers can pipe with confidence.
+        _no_brain(path, json_output)
         return 1
 
     print(render_json(report) if json_output else render_human(report))
@@ -212,11 +241,7 @@ def _cmd_audit(path: Path, json_output: bool) -> int:
 def _cmd_drift(path: Path, json_output: bool) -> int:
     report = drift(path)
     if report is None:
-        msg = f"No CLAUDE.md found at {path.resolve()}. Run /ProjectNewSetup first."
-        if json_output:
-            print('{"error": "no_claude_md", "path": "%s"}' % path.resolve())
-        else:
-            print(msg, file=sys.stderr)
+        _no_brain(path, json_output)
         return 2
 
     print(drift_json(report) if json_output else drift_human(report))
@@ -280,10 +305,9 @@ def _cmd_pending_archive(path: Path, days: int, dry_run: bool, json_output: bool
         _no_brain(path, json_output)
         return 2
     if json_output:
-        import json as _json
         result["dry_run"] = dry_run
         result["days"] = days
-        print(_json.dumps(result, indent=2))
+        print(json.dumps(result, indent=2))
     else:
         verb = "Would move" if dry_run else "Moved"
         print(f"Scanned: {result['scanned']} pending file(s)")
@@ -297,11 +321,21 @@ def _cmd_pending_archive(path: Path, days: int, dry_run: bool, json_output: bool
 def _cmd_sync_new_id(json_output: bool) -> int:
     sid = new_session_id()
     if json_output:
-        import json as _json
-        print(_json.dumps({"session_id": sid}))
+        print(json.dumps({"session_id": sid}))
     else:
         print(sid)
     return 0
+
+
+@_guard
+def _cmd_sync_preflight(path: Path, include_wip: bool, json_output: bool) -> int:
+    pf = preflight(path, include_wip=include_wip)
+    if pf is None:
+        _no_brain(path, json_output)
+        return 2
+    print(render_preflight_json(pf) if json_output else render_preflight_human(pf))
+    # Non-zero when the slash command should NOT proceed to merge.
+    return 0 if pf.ok else 1
 
 
 @_guard
@@ -316,8 +350,18 @@ def _cmd_sync_plan(path: Path, session_id: str, json_output: bool) -> int:
 
 
 def _no_brain(path: Path, json_output: bool) -> None:
-    msg = f"No CLAUDE.md found at {path.resolve()}. Run /ProjectNewSetup first."
+    """Emit a 'no managed project here' error to stderr in both modes.
+
+    Kept on stderr even in --json so stdout stays reserved for pipeable
+    payloads. Callers that care about the error shape can still detect it
+    via exit code (1 from audit, 2 elsewhere).
+    """
+    resolved = str(path.resolve())
     if json_output:
-        print('{"error": "no_claude_md", "path": "%s"}' % path.resolve())
+        payload = json.dumps({"error": "no_claude_md", "path": resolved})
+        print(payload, file=sys.stderr)
     else:
-        print(msg, file=sys.stderr)
+        print(
+            f"No CLAUDE.md found at {resolved}. Run /ProjectNewSetup first.",
+            file=sys.stderr,
+        )

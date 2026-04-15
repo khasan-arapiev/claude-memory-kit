@@ -1,14 +1,21 @@
 """Tests for `brain pending list` parser and conflict detection."""
 from __future__ import annotations
 
+import os
 import sys
+import tempfile
+import time
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "cli"))
+sys.path.insert(0, str(ROOT))  # tests._helpers
 
+from brain.archive import archive_old  # noqa: E402
 from brain.pending import detect_conflicts, list_pending  # noqa: E402
+
+from tests._helpers import clone_clean, stage_pending  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures" / "pending"
 
@@ -95,13 +102,9 @@ class TestPlaceholderValidation(unittest.TestCase):
     """Unknown {{...}} tokens and single-brace typos flag as validation issues."""
 
     def _parse(self, body: str):
-        import shutil, tempfile
         with tempfile.TemporaryDirectory() as tmp:
-            proj = Path(tmp) / "proj"
-            shutil.copytree(ROOT / "tests" / "fixtures" / "clean", proj)
-            pending = proj / "docs" / ".pending"
-            pending.mkdir(parents=True, exist_ok=True)
-            (pending / "2026-04-15-0900-xxxx.md").write_text(body, encoding="utf-8")
+            proj = clone_clean(Path(tmp))
+            stage_pending(proj, "2026-04-15-0900-xxxx", body)
             return list_pending(proj)
 
     def test_known_placeholder_is_clean(self):
@@ -146,88 +149,93 @@ class TestConflictWithBodyIssue(unittest.TestCase):
     """
 
     def test_body_issue_does_not_hide_conflict(self):
-        import shutil, tempfile
         with tempfile.TemporaryDirectory() as tmp:
-            proj = Path(tmp) / "proj"
-            shutil.copytree(ROOT / "tests" / "fixtures" / "clean", proj)
-            pending = proj / "docs" / ".pending"
-            pending.mkdir(parents=True, exist_ok=True)
-
-            # Item A: valid
-            (pending / "2026-04-15-0900-aaaa.md").write_text(
-                "# Pending\n\n"
-                "## decision\n"
+            proj = clone_clean(Path(tmp))
+            stage_pending(
+                proj, "2026-04-15-0900-aaaa",
+                "# Pending\n\n## decision\n"
                 "**target:** docs/decisions/2026-04-15-CHOICE.md\n"
-                "**confidence:** high\n\n"
-                "Use Python.\n",
-                encoding="utf-8",
+                "**confidence:** high\n\nUse Python.\n",
             )
             # Item B: bad confidence (body issue) but SAME target
-            (pending / "2026-04-15-0901-bbbb.md").write_text(
-                "# Pending\n\n"
-                "## decision\n"
+            stage_pending(
+                proj, "2026-04-15-0901-bbbb",
+                "# Pending\n\n## decision\n"
                 "**target:** docs/decisions/2026-04-15-CHOICE.md\n"
-                "**confidence:** weird\n\n"
-                "Use TypeScript.\n",
-                encoding="utf-8",
+                "**confidence:** weird\n\nUse TypeScript.\n",
             )
             items = list_pending(proj)
             self.assertEqual(len(items), 2)
             conflicts = detect_conflicts(items)
             self.assertEqual(len(conflicts), 1)
-            self.assertEqual(
-                conflicts[0].target,
-                "docs/decisions/2026-04-15-CHOICE.md",
-            )
+            self.assertEqual(conflicts[0].target, "docs/decisions/2026-04-15-CHOICE.md")
 
 
 class TestPendingArchive(unittest.TestCase):
+    @staticmethod
+    def _backdate(path: Path, days: int) -> None:
+        past = time.time() - days * 86400
+        os.utime(path, (past, past))
+
     def test_archive_moves_only_old_files(self):
-        import os
-        import shutil
-        import tempfile
-        import time
-        from brain.pending import archive_old  # noqa: E402
-
         with tempfile.TemporaryDirectory() as tmp:
-            proj = Path(tmp) / "proj"
-            shutil.copytree(ROOT / "tests" / "fixtures" / "clean", proj)
-            pending = proj / "docs" / ".pending"
-            pending.mkdir(parents=True, exist_ok=True)
-
-            old = pending / "2020-01-01-0000-oooo.md"
-            old.write_text("# Old\n\n## fact\n**target:** x.md\n**confidence:** high\n\nX\n", encoding="utf-8")
-            # Backdate mtime by 30 days
-            past = time.time() - 30 * 86400
-            os.utime(old, (past, past))
-
-            fresh = pending / "2026-04-15-0900-ffff.md"
-            fresh.write_text("# Fresh\n\n## fact\n**target:** y.md\n**confidence:** high\n\nY\n", encoding="utf-8")
+            proj = clone_clean(Path(tmp))
+            old = stage_pending(
+                proj, "2020-01-01-0000-oooo",
+                "# Old\n\n## fact\n**target:** x.md\n**confidence:** high\n\nX\n",
+            )
+            self._backdate(old, 30)
+            fresh = stage_pending(
+                proj, "2026-04-15-0900-ffff",
+                "# Fresh\n\n## fact\n**target:** y.md\n**confidence:** high\n\nY\n",
+            )
 
             result = archive_old(proj, days=14, dry_run=False)
             self.assertEqual(result["scanned"], 2)
             self.assertEqual(result["archived"], 1)
             self.assertEqual(result["kept"], 1)
             self.assertFalse(old.exists())
-            self.assertTrue((pending / "archive" / old.name).exists())
+            pending_archive = proj / "docs" / ".pending" / "archive"
+            self.assertTrue((pending_archive / old.name).exists())
             self.assertTrue(fresh.exists())
 
     def test_dry_run_does_not_move(self):
-        import os, shutil, tempfile, time
-        from brain.pending import archive_old  # noqa: E402
         with tempfile.TemporaryDirectory() as tmp:
-            proj = Path(tmp) / "proj"
-            shutil.copytree(ROOT / "tests" / "fixtures" / "clean", proj)
-            pending = proj / "docs" / ".pending"
-            pending.mkdir(parents=True, exist_ok=True)
-            old = pending / "2020-01-01-0000-oooo.md"
-            old.write_text("# Old\n\n## fact\n**target:** x.md\n**confidence:** high\n\nX\n", encoding="utf-8")
-            past = time.time() - 30 * 86400
-            os.utime(old, (past, past))
+            proj = clone_clean(Path(tmp))
+            old = stage_pending(
+                proj, "2020-01-01-0000-oooo",
+                "# Old\n\n## fact\n**target:** x.md\n**confidence:** high\n\nX\n",
+            )
+            self._backdate(old, 30)
 
             result = archive_old(proj, days=14, dry_run=True)
             self.assertEqual(result["archived"], 1)
             self.assertTrue(old.exists(), "dry-run must not move files")
+
+    def test_archive_collision_uses_unique_suffix(self):
+        """If archive/<name> already exists, rename to <name>.1 instead of
+        crashing on Windows or silently overwriting on POSIX."""
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = clone_clean(Path(tmp))
+            # Pre-populate archive/ with a colliding file.
+            archive = proj / "docs" / ".pending" / "archive"
+            archive.mkdir(parents=True, exist_ok=True)
+            collider = archive / "2020-01-01-0000-oooo.md"
+            collider.write_text("# already archived\n", encoding="utf-8")
+
+            old = stage_pending(
+                proj, "2020-01-01-0000-oooo",
+                "# New version\n\n## fact\n**target:** x.md\n**confidence:** high\n\nX\n",
+            )
+            self._backdate(old, 30)
+
+            result = archive_old(proj, days=14, dry_run=False)
+            self.assertEqual(result["archived"], 1)
+            self.assertTrue(collider.exists(), "prior archive must not be overwritten")
+            self.assertTrue(
+                (archive / "2020-01-01-0000-oooo.1.md").exists(),
+                "collision must produce a suffixed filename",
+            )
 
 
 if __name__ == "__main__":

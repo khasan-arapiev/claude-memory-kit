@@ -64,7 +64,7 @@ def detect(root: Path) -> Project | None:
     if not claude.is_file():
         return None
 
-    text = _read_claude_md(claude)
+    text = read_md(claude)
     docs = root / "docs"
     has_docs = docs.is_dir()
 
@@ -130,30 +130,24 @@ def iter_doc_files(project: Project) -> list[Path]:
     return []
 
 
-def _read_claude_md(path: Path) -> str:
-    """CLAUDE.md must exist at this point, but tolerate IO errors (permissions, races)."""
-    try:
-        return path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return ""
-
-
 def read_md(path: Path) -> str:
     """Read a markdown file with UTF-8 tolerance and LF-normalised line endings.
 
-    Single place for the encoding dance. Returns "" on IO errors rather than
-    raising, so audits of large trees with a few unreadable files don't crash
-    mid-scan. Normalises CRLF → LF so regexes that pin on `\\n` (frontmatter,
-    chunk strip) work on Windows-authored docs read on any platform.
+    Single place for the encoding dance. Returns "" on `OSError` (permissions,
+    missing file) rather than raising, so audits of large trees with a few
+    unreadable files don't crash mid-scan. `ValueError` and other programmer
+    errors are intentionally NOT caught — they should surface as tracebacks.
+
+    `Path.read_text` already does universal-newline translation in text mode,
+    but only when the host OS's native newline is `\\n`. A CRLF file read on
+    a Windows host (or a lone-CR file anywhere) can leak `\\r` into the
+    string and break regexes that pin on `\\n`. The explicit normalisation
+    below handles those edge cases.
     """
     try:
         text = path.read_text(encoding="utf-8", errors="replace")
-    except (OSError, ValueError):
+    except OSError:
         return ""
-    # Python's `read_text` does universal-newline translation in text mode on
-    # most platforms, but not when the source newline style comes from a
-    # cross-platform checkout (e.g. Git config core.autocrlf=false). Normalise
-    # explicitly so downstream parsers don't care.
     if "\r" in text:
         text = text.replace("\r\n", "\n").replace("\r", "\n")
     return text

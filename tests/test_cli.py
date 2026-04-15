@@ -60,6 +60,27 @@ class TestCLIExitCodes(unittest.TestCase):
         code, _, _ = _run(["sync", "plan", PENDING, "--session-id", "2026-04-14-1430-a3b9"])
         self.assertEqual(code, 1)
 
+    def test_sync_plan_inspect_mode_works(self):
+        code, _, _ = _run(["sync", "plan", CLEAN, "--inspect"])
+        self.assertEqual(code, 0)
+
+    def test_sync_plan_requires_session_or_inspect(self):
+        # argparse emits usage to stderr and exits 2 on missing required args.
+        with self.assertRaises(SystemExit) as cm:
+            _run(["sync", "plan", CLEAN])
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_sync_preflight_outside_git_exits_zero(self):
+        # Run against a tempdir copy so the surrounding repo's dirty state
+        # doesn't leak in. Without a git repo, there's nothing to block on.
+        import shutil, tempfile
+        from pathlib import Path as _Path
+        with tempfile.TemporaryDirectory() as tmp:
+            proj = _Path(tmp) / "proj"
+            shutil.copytree(ROOT / "tests" / "fixtures" / "clean", proj)
+            code, _, _ = _run(["sync", "preflight", str(proj)])
+            self.assertEqual(code, 0)
+
     def test_new_session_id_emits_valid_format(self):
         code, out, _ = _run(["sync", "new-session-id"])
         self.assertEqual(code, 0)

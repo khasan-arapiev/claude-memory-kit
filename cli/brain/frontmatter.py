@@ -84,9 +84,12 @@ def parse(text: str) -> Frontmatter:
 
 
 def parse_file(path: Path) -> Frontmatter:
-    try:
-        text = path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    # Route through `project.read_md` so CRLF normalisation + IO tolerance
+    # apply consistently. Previously this function did its own read, which
+    # meant decisions/drift (both frontmatter consumers) missed the fix.
+    from .project import read_md
+    text = read_md(path)
+    if not text:
         return Frontmatter(data={}, body="")
     return parse(text)
 
