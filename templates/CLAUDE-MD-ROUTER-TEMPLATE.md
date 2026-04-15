@@ -29,8 +29,8 @@ This is a **router-level** folder. It does not contain a single project, it cont
 
 ---
 
-## Project Brain Markers
+## Claude Memory Kit Markers
 
 <!-- project-brain: managed -->
-<!-- project-brain: version 1 -->
-<!-- project-brain: type router -->
+<!-- claude-memory-kit: version 1 -->
+<!-- claude-memory-kit: type router -->

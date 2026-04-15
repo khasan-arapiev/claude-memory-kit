@@ -1,6 +1,6 @@
 # Commands Overview
 
-Three slash commands implement the project-brain system. Each lives in `~/.claude/commands/` as its own `.md` file.
+Three slash commands implement the claude-memory-kit system. Each lives in `~/.claude/commands/` as its own `.md` file.
 
 ## Quick reference
 
@@ -76,7 +76,7 @@ The CLI enforces this deterministically — the slash command does not recount p
 
 ## Session-start behavior
 
-When any new chat starts in a folder containing a project-brain managed CLAUDE.md (detected by the `<!-- project-brain: managed -->` marker):
+When any new chat starts in a folder containing a claude-memory-kit managed CLAUDE.md (detected by the `<!-- project-brain: managed -->` marker):
 
 1. Read CLAUDE.md.
 2. Validate routing entries point to existing files.

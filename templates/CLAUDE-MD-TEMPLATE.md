@@ -54,9 +54,9 @@ Do not create any local `.env`, `credentials.json`, or `config.local.json` files
 
 ---
 
-## Project Brain Markers
+## Claude Memory Kit Markers
 
-<!-- These markers signal the project-brain skill that this file is managed -->
+<!-- These markers signal the claude-memory-kit skill that this file is managed -->
 <!-- project-brain: managed -->
-<!-- project-brain: version 1 -->
-<!-- project-brain: type project -->
+<!-- claude-memory-kit: version 1 -->
+<!-- claude-memory-kit: type project -->

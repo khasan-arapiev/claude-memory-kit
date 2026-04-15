@@ -19,11 +19,11 @@ Both live in `~/.claude/settings.json` under the `hooks` key.
         "hooks": [
           {
             "type": "command",
-            "command": "test -f CLAUDE.md && python \"$HOME/.claude/skills/project-brain/cli/run.py\" audit . 2>/dev/null | head -20 || true"
+            "command": "test -f CLAUDE.md && python \"$HOME/.claude/skills/claude-memory-kit/cli/run.py\" audit . 2>/dev/null | head -20 || true"
           },
           {
             "type": "command",
-            "command": "test -f CLAUDE.md && python \"$HOME/.claude/skills/project-brain/cli/run.py\" drift . 2>/dev/null | head -10 || true"
+            "command": "test -f CLAUDE.md && python \"$HOME/.claude/skills/claude-memory-kit/cli/run.py\" drift . 2>/dev/null | head -10 || true"
           }
         ]
       }
@@ -32,7 +32,7 @@ Both live in `~/.claude/settings.json` under the `hooks` key.
 }
 ```
 
-The `test -f CLAUDE.md` guard means the hook only fires in project-brain-managed folders. Elsewhere it's a no-op.
+The `test -f CLAUDE.md` guard means the hook only fires in claude-memory-kit-managed folders. Elsewhere it's a no-op.
 
 **Windows note:** these use bash syntax. Git Bash handles them; PowerShell does not. If your Claude Code install uses PowerShell, replace `test -f CLAUDE.md && ... || true` with the PowerShell equivalent, or point the hook at the `stop-prompt.py` pattern below (Python is the same on every OS).
 
@@ -51,7 +51,7 @@ The `test -f CLAUDE.md` guard means the hook only fires in project-brain-managed
         "hooks": [
           {
             "type": "command",
-            "command": "python \"$HOME/.claude/skills/project-brain/hooks/stop-prompt.py\""
+            "command": "python \"$HOME/.claude/skills/claude-memory-kit/hooks/stop-prompt.py\""
           }
         ]
       }
@@ -66,7 +66,7 @@ The script:
 - Otherwise prints a nudge only if the session made commits but none of them were `sync:` commits in the last hour.
 - Never raises: bugs in the hook don't break Claude.
 
-Read or modify the script at `~/.claude/skills/project-brain/hooks/stop-prompt.py`. It's ~70 lines of stdlib Python, no dependencies.
+Read or modify the script at `~/.claude/skills/claude-memory-kit/hooks/stop-prompt.py`. It's ~70 lines of stdlib Python, no dependencies.
 
 ## Manual install
 

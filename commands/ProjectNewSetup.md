@@ -1,23 +1,23 @@
 ---
-description: Scaffold a new project with the project-brain folder structure, CLAUDE.md, and Security config
+description: Scaffold a new project with the claude-memory-kit folder structure, CLAUDE.md, and Security config
 ---
 
-You are running the `ProjectNewSetup` command from the `project-brain` skill.
+You are running the `ProjectNewSetup` command from the `claude-memory-kit` skill.
 
 ## Your job
 
-Scaffold a brand new project with the full project-brain structure. The user has invoked this command in the current working directory or has specified a target directory.
+Scaffold a brand new project with the full claude-memory-kit structure. The user has invoked this command in the current working directory or has specified a target directory.
 
 ## Required references
 
-Load these files from the project-brain skill before proceeding:
-- `~/.claude/skills/project-brain/SKILL.md`
-- `~/.claude/skills/project-brain/references/quality-rules.md`
-- `~/.claude/skills/project-brain/references/commands-overview.md`
-- `~/.claude/skills/project-brain/templates/CLAUDE-MD-TEMPLATE.md`
-- `~/.claude/skills/project-brain/templates/CLAUDE-MD-ROUTER-TEMPLATE.md`
-- `~/.claude/skills/project-brain/templates/SECURITY-CONFIG-TEMPLATE.json`
-- `~/.claude/skills/project-brain/templates/GITIGNORE-TEMPLATE`
+Load these files from the claude-memory-kit skill before proceeding:
+- `~/.claude/skills/claude-memory-kit/SKILL.md`
+- `~/.claude/skills/claude-memory-kit/references/quality-rules.md`
+- `~/.claude/skills/claude-memory-kit/references/commands-overview.md`
+- `~/.claude/skills/claude-memory-kit/templates/CLAUDE-MD-TEMPLATE.md`
+- `~/.claude/skills/claude-memory-kit/templates/CLAUDE-MD-ROUTER-TEMPLATE.md`
+- `~/.claude/skills/claude-memory-kit/templates/SECURITY-CONFIG-TEMPLATE.json`
+- `~/.claude/skills/claude-memory-kit/templates/GITIGNORE-TEMPLATE`
 
 ## Steps
 
@@ -34,7 +34,7 @@ Ask: "Is this a **router level** (just routes to sub-projects) or a **project le
 
 Ask: "What type of project? (website, saas, ecommerce, client-work, tool, other)"
 
-If a type other than "other" is chosen, load the corresponding template from `~/.claude/skills/project-brain/templates/project-types/<TYPE>.md` for type-specific extras.
+If a type other than "other" is chosen, load the corresponding template from `~/.claude/skills/claude-memory-kit/templates/project-types/<TYPE>.md` for type-specific extras.
 
 ### 4. Gather metadata
 
@@ -101,12 +101,12 @@ Write to `<target>/CLAUDE.md`.
 
 ### 9. Create README.md for the user
 
-Read `~/.claude/skills/project-brain/templates/README-TEMPLATE.md`. Replace:
+Read `~/.claude/skills/claude-memory-kit/templates/README-TEMPLATE.md`. Replace:
 - `{{PROJECT_NAME}}` → user-provided project name
 
 Write the result to `<target>/README.md`.
 
-This README explains the project-brain system, the 5 commands, and the folder layout in plain language so anyone opening the project (including the user) understands how it works.
+This README explains the claude-memory-kit system, the 5 commands, and the folder layout in plain language so anyone opening the project (including the user) understands how it works.
 
 ### 10. Create Security config
 

@@ -70,12 +70,12 @@ def _guard(fn):
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="brain",
-        description="Project Brain CLI - deterministic tooling for project-brain projects.",
+        description="Claude Memory Kit CLI - deterministic tooling for claude-memory-kit projects.",
     )
     parser.add_argument("--version", action="version", version=f"brain {__version__}")
     sub = parser.add_subparsers(dest="command", required=True)
 
-    audit_p = sub.add_parser("audit", help="Audit a project-brain folder and report health.")
+    audit_p = sub.add_parser("audit", help="Audit a claude-memory-kit folder and report health.")
     audit_p.add_argument("path", nargs="?", default=".", help="Project root (default: current directory)")
     audit_p.add_argument("--json", action="store_true", help="Emit machine-readable JSON.")
 

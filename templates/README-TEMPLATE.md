@@ -1,6 +1,6 @@
 # {{PROJECT_NAME}}
 
-This project uses the **project-brain** system, a living documentation setup that keeps your project knowledge organized and up to date across every Claude chat.
+This project uses the **claude-memory-kit** system, a living documentation setup that keeps your project knowledge organized and up to date across every Claude chat.
 
 ## What it does
 

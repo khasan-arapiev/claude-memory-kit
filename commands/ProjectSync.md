@@ -2,7 +2,7 @@
 description: One-stop brain sync — extracts insights, stages them, merges when safe, refuses when unsafe. Replaces /ProjectSave, /ProjectMerge, /ProjectUpdate.
 ---
 
-You are running the `ProjectSync` command from the `project-brain` skill.
+You are running the `ProjectSync` command from the `claude-memory-kit` skill.
 
 ## Your job
 
@@ -28,22 +28,22 @@ At the end of a dry run, print: *"Dry run complete. No files or commits touched.
 
 ## Required references
 
-- `~/.claude/skills/project-brain/references/extraction-rubric.md` — what to save vs ignore
-- `~/.claude/skills/project-brain/references/quality-rules.md` — naming, size caps, self-growing schema
-- `~/.claude/skills/project-brain/templates/ADR-TEMPLATE.md` — for new decision items
+- `~/.claude/skills/claude-memory-kit/references/extraction-rubric.md` — what to save vs ignore
+- `~/.claude/skills/claude-memory-kit/references/quality-rules.md` — naming, size caps, self-growing schema
+- `~/.claude/skills/claude-memory-kit/templates/ADR-TEMPLATE.md` — for new decision items
 
-## Step 1 — Verify project-brain managed
+## Step 1 — Verify claude-memory-kit managed
 
 Check current directory for `CLAUDE.md` with `<!-- project-brain: managed -->`. If absent, abort:
 
-> Not a project-brain managed project. Run `/ProjectNewSetup` first.
+> Not a claude-memory-kit managed project. Run `/ProjectNewSetup` first.
 
 ## Step 2 — Run preflight
 
 One CLI call gives you session id, git state, and the sync plan:
 
 ```bash
-python "$HOME/.claude/skills/project-brain/cli/run.py" sync preflight "$(pwd)" --json \
+python "$HOME/.claude/skills/claude-memory-kit/cli/run.py" sync preflight "$(pwd)" --json \
   ${INCLUDE_WIP:+--include-wip} ${DRY_RUN:+--dry-run}
 ```
 
@@ -68,7 +68,7 @@ If `plan.stale_pending_count > 0`, tell the user once (before extracting) and of
 If the user says **yes**: run `brain pending archive "$(pwd)" --days 14`. Then refresh the plan — but NOT the full preflight, because that would mint a new session id. Run only:
 
 ```bash
-python "$HOME/.claude/skills/project-brain/cli/run.py" sync plan "$(pwd)" --session-id "$session_id" --json
+python "$HOME/.claude/skills/claude-memory-kit/cli/run.py" sync plan "$(pwd)" --session-id "$session_id" --json
 ```
 
 and use the new `plan.mode` for Step 4. Keep the original `session_id` from Step 2.
@@ -117,7 +117,7 @@ Pick a `target:` per item:
 Write items to `docs/.pending/${session_id}.md` using `templates/PENDING-FILE-TEMPLATE.md`. Do not apply them. Verify:
 
 ```bash
-python "$HOME/.claude/skills/project-brain/cli/run.py" pending list "$(pwd)" --json
+python "$HOME/.claude/skills/claude-memory-kit/cli/run.py" pending list "$(pwd)" --json
 ```
 
 Items from this session should have empty `issues`. Fix any flagged ones before finishing. Report:
@@ -179,7 +179,7 @@ ADR targets have an "Alternatives considered" section — put the loser there in
 For **non-ADR targets** (rules, corrections), the pending file will be deleted in Step 6.6, and a truncated commit message is not a safe home for the loser. Use the deterministic CLI helper — it appends to `docs/.pending/archive/rejected-${session_id}.md` with a consistent header format and exits non-zero on failure, so the loser is guaranteed persisted before you move on:
 
 ```bash
-python "$HOME/.claude/skills/project-brain/cli/run.py" pending reject "$(pwd)" \
+python "$HOME/.claude/skills/claude-memory-kit/cli/run.py" pending reject "$(pwd)" \
   --session-id "$session_id" \
   --type "<rule|fact|decision|correction>" \
   --target "<target path>" \

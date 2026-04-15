@@ -110,7 +110,7 @@ Report format: `Brain health: X%. <one-line summary of findings>`
 
 When `ProjectSetupFix` runs at a router level:
 
-1. List all sibling sub-projects with project-brain markers
+1. List all sibling sub-projects with claude-memory-kit markers
 2. For each, extract any "Writing Rules" or recurring rules from their docs
 3. Find rules that appear verbatim or near-verbatim in 2+ projects
 4. Propose promoting them to the parent router's CLAUDE.md

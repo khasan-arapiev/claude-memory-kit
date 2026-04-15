@@ -1,18 +1,18 @@
 #!/usr/bin/env bash
-# Project Brain installer for macOS and Linux.
+# Claude Memory Kit installer for macOS and Linux.
 #
 # Run from a local checkout:
 #   ./install.sh
 #
 # Or one-shot (once the repo is public):
-#   curl -fsSL https://raw.githubusercontent.com/khasan-arapiev/project-brain/main/install.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/khasan-arapiev/claude-memory-kit/main/install.sh | bash
 #
 # Idempotent: safe to re-run to upgrade.
 
 set -euo pipefail
 
 CLAUDE_HOME="${CLAUDE_HOME:-$HOME/.claude}"
-SKILL_DIR="$CLAUDE_HOME/skills/project-brain"
+SKILL_DIR="$CLAUDE_HOME/skills/claude-memory-kit"
 COMMANDS_DIR="$CLAUDE_HOME/commands"
 
 # Resolve the directory this script lives in (works whether sourced, run, or piped via curl)
@@ -20,9 +20,9 @@ if [[ -t 0 ]] || [[ -n "${BASH_SOURCE[0]:-}" ]]; then
   SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
 else
   # Curl-piped: clone to a temp dir
-  SOURCE_DIR="$(mktemp -d)/project-brain"
-  echo "==> Fetching project-brain..."
-  git clone --depth=1 https://github.com/khasan-arapiev/project-brain.git "$SOURCE_DIR"
+  SOURCE_DIR="$(mktemp -d)/claude-memory-kit"
+  echo "==> Fetching claude-memory-kit..."
+  git clone --depth=1 https://github.com/khasan-arapiev/claude-memory-kit.git "$SOURCE_DIR"
 fi
 
 bold()   { printf "\033[1m%s\033[0m\n" "$*"; }
@@ -30,7 +30,7 @@ green()  { printf "\033[32m%s\033[0m\n" "$*"; }
 yellow() { printf "\033[33m%s\033[0m\n" "$*"; }
 red()    { printf "\033[31m%s\033[0m\n" "$*"; }
 
-bold "Project Brain installer"
+bold "Claude Memory Kit installer"
 echo
 
 # 1. Python check (must actually execute - skip Windows MS Store shortcut)

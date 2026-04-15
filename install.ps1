@@ -1,17 +1,17 @@
-# Project Brain installer for Windows (PowerShell 5.1+).
+# Claude Memory Kit installer for Windows (PowerShell 5.1+).
 #
 # Run from a local checkout:
 #   .\install.ps1
 #
 # Or one-shot (once the repo is public):
-#   irm https://raw.githubusercontent.com/khasan-arapiev/project-brain/main/install.ps1 | iex
+#   irm https://raw.githubusercontent.com/khasan-arapiev/claude-memory-kit/main/install.ps1 | iex
 #
 # Idempotent: safe to re-run to upgrade.
 
 $ErrorActionPreference = "Stop"
 
 $ClaudeHome  = if ($env:CLAUDE_HOME) { $env:CLAUDE_HOME } else { Join-Path $env:USERPROFILE ".claude" }
-$SkillDir    = Join-Path $ClaudeHome "skills\project-brain"
+$SkillDir    = Join-Path $ClaudeHome "skills\claude-memory-kit"
 $CommandsDir = Join-Path $ClaudeHome "commands"
 
 # Resolve source dir
@@ -19,10 +19,10 @@ if ($PSCommandPath) {
   $SourceDir = Split-Path -Parent $PSCommandPath
 } else {
   # iex-piped: clone to temp
-  $SourceDir = Join-Path ([System.IO.Path]::GetTempPath()) "project-brain"
-  Write-Host "==> Fetching project-brain..."
+  $SourceDir = Join-Path ([System.IO.Path]::GetTempPath()) "claude-memory-kit"
+  Write-Host "==> Fetching claude-memory-kit..."
   if (Test-Path $SourceDir) { Remove-Item -Recurse -Force $SourceDir }
-  git clone --depth=1 https://github.com/khasan-arapiev/project-brain.git $SourceDir
+  git clone --depth=1 https://github.com/khasan-arapiev/claude-memory-kit.git $SourceDir
 }
 
 function Write-Bold($msg)   { Write-Host $msg -ForegroundColor White -BackgroundColor DarkGray }
@@ -30,7 +30,7 @@ function Write-Ok($msg)     { Write-Host $msg -ForegroundColor Green }
 function Write-Warn($msg)   { Write-Host $msg -ForegroundColor Yellow }
 function Write-Err($msg)    { Write-Host $msg -ForegroundColor Red }
 
-Write-Bold "Project Brain installer"
+Write-Bold "Claude Memory Kit installer"
 Write-Host ""
 
 # 1. Python check

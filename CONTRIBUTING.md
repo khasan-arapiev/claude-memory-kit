@@ -1,4 +1,4 @@
-# Contributing to Project Brain
+# Contributing to Claude Memory Kit
 
 Thanks for considering a contribution. The project is small and opinionated; the rules below keep it that way.
 
@@ -12,8 +12,8 @@ Thanks for considering a contribution. The project is small and opinionated; the
 ## Setup
 
 ```bash
-git clone https://github.com/khasan-arapiev/project-brain.git
-cd project-brain
+git clone https://github.com/khasan-arapiev/claude-memory-kit.git
+cd claude-memory-kit
 python -m unittest discover tests -v   # 48 tests, < 1 second
 ```
 

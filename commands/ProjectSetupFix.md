@@ -2,18 +2,18 @@
 description: Audit and polish an existing project's structure, fix orphans, broken routes, naming, sizes, and report brain health
 ---
 
-You are running the `ProjectSetupFix` command from the `project-brain` skill.
+You are running the `ProjectSetupFix` command from the `claude-memory-kit` skill.
 
 ## Your job
 
-Audit the current directory's project-brain structure using the deterministic `brain audit` CLI, then fix detected issues interactively, and report the health score.
+Audit the current directory's claude-memory-kit structure using the deterministic `brain audit` CLI, then fix detected issues interactively, and report the health score.
 
 ## Required references
 
-Load these files from the project-brain skill as needed:
-- `~/.claude/skills/project-brain/references/quality-rules.md` — rules and fix actions
-- `~/.claude/skills/project-brain/templates/CLAUDE-MD-TEMPLATE.md` — section templates
-- `~/.claude/skills/project-brain/templates/README-TEMPLATE.md` — used when README is missing
+Load these files from the claude-memory-kit skill as needed:
+- `~/.claude/skills/claude-memory-kit/references/quality-rules.md` — rules and fix actions
+- `~/.claude/skills/claude-memory-kit/templates/CLAUDE-MD-TEMPLATE.md` — section templates
+- `~/.claude/skills/claude-memory-kit/templates/README-TEMPLATE.md` — used when README is missing
 
 ## Step 1 — Run the deterministic audit
 
@@ -23,7 +23,7 @@ Do NOT count files or score health manually. Call the CLI:
 python -m brain audit "<project path>" --json
 ```
 
-(The CLI lives at `~/.claude/skills/project-brain/cli/`. If your shell's `python` is not the one with the CLI module on PYTHONPATH, fall back to: `python "$HOME/.claude/skills/project-brain/cli/run.py" audit "<path>" --json`.)
+(The CLI lives at `~/.claude/skills/claude-memory-kit/cli/`. If your shell's `python` is not the one with the CLI module on PYTHONPATH, fall back to: `python "$HOME/.claude/skills/claude-memory-kit/cli/run.py" audit "<path>" --json`.)
 
 The CLI returns JSON like:
 ```json
@@ -50,7 +50,7 @@ Parse this JSON. Everything downstream works off these findings. If the CLI retu
 
 ## Step 2 — Handle missing marker
 
-If `has_marker` is false, ask the user: "This CLAUDE.md is not marked as project-brain managed. Should I treat it as managed and add the marker?" If yes, add `<!-- project-brain: managed v1 -->` near the top of CLAUDE.md.
+If `has_marker` is false, ask the user: "This CLAUDE.md is not marked as claude-memory-kit managed. Should I treat it as managed and add the marker?" If yes, add `<!-- project-brain: managed v1 -->` near the top of CLAUDE.md.
 
 ## Step 3 — Fix issues interactively
 

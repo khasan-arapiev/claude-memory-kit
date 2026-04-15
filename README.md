@@ -1,8 +1,8 @@
-# Project Brain — Persistent Project Memory for Claude Code
+# Claude Memory Kit — Persistent Project Memory for Claude Code
 
 **Keep every Claude Code session context-aware, without ever re-explaining your project.**
 
-Project Brain is a [Claude Code](https://claude.com/claude-code) skill + Python CLI that solves the "every new Claude chat forgets my project" problem. It scaffolds a living `CLAUDE.md` router + `docs/` knowledge base, stages insights between sessions, auto-detects conflicts, and prevents context bloat as your project grows. Think of it as long-term memory for your AI coding agent.
+Claude Memory Kit is a [Claude Code](https://claude.com/claude-code) skill + Python CLI that solves the "every new Claude chat forgets my project" problem. It scaffolds a living `CLAUDE.md` router + `docs/` knowledge base, stages insights between sessions, auto-detects conflicts, and prevents context bloat as your project grows. Think of it as long-term memory for your AI coding agent.
 
 **Problems this solves:**
 - "My `CLAUDE.md` is 800 lines and every chat re-reads the same stale context"
@@ -15,13 +15,13 @@ Project Brain is a [Claude Code](https://claude.com/claude-code) skill + Python 
 
 > Built for solo founders, agencies, and small teams who want Claude Code to behave like a long-term collaborator, not a forgetful assistant.
 
-**Status:** v0.3.0. Validated end-to-end against a real project. 95 tests passing. See [CHANGELOG.md](CHANGELOG.md) for what's shipped and [the bottom of this README](#status--known-limitations) for honest known limitations.
+**Status:** v0.3.1. Validated end-to-end against a real project. 95 tests passing. See [CHANGELOG.md](CHANGELOG.md) for what's shipped and [the bottom of this README](#status--known-limitations) for honest known limitations.
 
 ---
 
-## Why Project Brain
+## Why Claude Memory Kit
 
-Large projects die a slow death in `CLAUDE.md`. It balloons past 500 lines, every chat re-reads the same stale context, and new learnings get lost between sessions. Project Brain fixes this with one opinionated pattern:
+Large projects die a slow death in `CLAUDE.md`. It balloons past 500 lines, every chat re-reads the same stale context, and new learnings get lost between sessions. Claude Memory Kit fixes this with one opinionated pattern:
 
 - **`CLAUDE.md` is a router**, not a dumping ground. Hard cap: 3000 tokens (≈200 lines of dense prose).
 - **Details live in `docs/`**, split by purpose and auto-linked from the router.
@@ -72,19 +72,19 @@ Requires [Claude Code](https://claude.com/claude-code) and Python 3.10+.
 
 **macOS / Linux:**
 ```bash
-git clone https://github.com/khasan-arapiev/project-brain.git
-cd project-brain && ./install.sh
+git clone https://github.com/khasan-arapiev/claude-memory-kit.git
+cd claude-memory-kit && ./install.sh
 ```
 
 **Windows (PowerShell):**
 ```powershell
-git clone https://github.com/khasan-arapiev/project-brain.git
-cd project-brain; .\install.ps1
+git clone https://github.com/khasan-arapiev/claude-memory-kit.git
+cd claude-memory-kit; .\install.ps1
 ```
 
 The installer:
 - Verifies Python 3.10+
-- Copies the skill to `~/.claude/skills/project-brain/`
+- Copies the skill to `~/.claude/skills/claude-memory-kit/`
 - Copies the 3 slash commands to `~/.claude/commands/`
 - Runs the test suite (95 tests, stdlib only)
 - Prints next steps
@@ -93,7 +93,7 @@ Re-run any time to upgrade. The script is idempotent.
 
 ### Manual install (if you don't trust scripts)
 
-Copy `.` to `~/.claude/skills/project-brain/` and `commands/Project*.md` to `~/.claude/commands/`. That's it.
+Copy `.` to `~/.claude/skills/claude-memory-kit/` and `commands/Project*.md` to `~/.claude/commands/`. That's it.
 
 ### After install
 
@@ -199,7 +199,7 @@ See `references/quality-rules.md` for the full rubric.
 
 ## Status & known limitations
 
-**Status:** v0.3.0. Deterministic CLI, 95 tests, cross-platform installers, zero dependencies. Validated end-to-end on real projects. See [CHANGELOG.md](CHANGELOG.md) for per-release detail.
+**Status:** v0.3.1. Deterministic CLI, 95 tests, cross-platform installers, zero dependencies. Validated end-to-end on real projects. See [CHANGELOG.md](CHANGELOG.md) for per-release detail.
 
 **Known limitations** (none are blockers; all are roadmap):
 - `brain query` uses TF-IDF, not semantic embeddings. Synonym mismatches happen ("Sentry" vs "error monitoring").

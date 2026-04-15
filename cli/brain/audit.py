@@ -1,4 +1,4 @@
-"""`brain audit` - deterministic project-brain health check.
+"""`brain audit` - deterministic claude-memory-kit health check.
 
 Emits structured findings and a 0-100 hygiene score. Designed to be called
 from a slash command like /ProjectSetupFix, which reads the JSON and narrates

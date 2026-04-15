@@ -5,7 +5,7 @@ Run by Claude Code's Stop hook (one shell command per hook, so a single
 script file is both readable and cross-platform):
 
     settings.json -> hooks.Stop[*].hooks[0].command =
-        "python \"$HOME/.claude/skills/project-brain/hooks/stop-prompt.py\""
+        "python \"$HOME/.claude/skills/claude-memory-kit/hooks/stop-prompt.py\""
 
 Output:
   stdout:  a one-line reminder (or nothing if no nudge needed)
@@ -21,8 +21,8 @@ Logic:
      so the hook doesn't become banner-blind noise.
 
 Install path override:
-  Set BRAIN_SKILL_DIR to point at the project-brain skill dir if you
-  installed it somewhere other than ~/.claude/skills/project-brain.
+  Set BRAIN_SKILL_DIR to point at the claude-memory-kit skill dir if you
+  installed it somewhere other than ~/.claude/skills/claude-memory-kit.
 """
 from __future__ import annotations
 
@@ -34,11 +34,11 @@ from pathlib import Path
 
 CLAUDE_MD = Path("CLAUDE.md")
 
-# Install path: default `~/.claude/skills/project-brain`, overridable via env.
+# Install path: default `~/.claude/skills/claude-memory-kit`, overridable via env.
 BRAIN_SKILL_DIR = Path(
     os.environ.get(
         "BRAIN_SKILL_DIR",
-        str(Path.home() / ".claude" / "skills" / "project-brain"),
+        str(Path.home() / ".claude" / "skills" / "claude-memory-kit"),
     )
 )
 BRAIN_CLI = BRAIN_SKILL_DIR / "cli" / "run.py"

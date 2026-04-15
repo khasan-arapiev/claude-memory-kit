@@ -1,6 +1,6 @@
 """Project detection and shared filesystem helpers.
 
-A project-brain project has one of three layouts:
+A claude-memory-kit project has one of three layouts:
 - project: contains CLAUDE.md + docs/ (and usually project/)
 - router:  contains CLAUDE.md + sub-folders that are themselves projects, no local docs/
 - flat:    contains CLAUDE.md + .md files at root, no docs/ folder (small projects)
@@ -15,6 +15,12 @@ from pathlib import Path
 MANAGED_MARKER = "project-brain: managed"
 # Marker must appear inside an HTML comment or YAML frontmatter to count as managed.
 # This prevents prose mentions ("> the project-brain: managed marker") from being false-positives.
+#
+# NOTE: the string `project-brain: managed` is preserved forever as the
+# backwards-compatible identifier. The product is called Claude Memory Kit
+# (v0.3.1+) but every CLAUDE.md file — including ones out in the wild from
+# the project-brain era — uses this marker to signal "this file is managed
+# by the skill." Changing the marker string would break all existing installs.
 MANAGED_MARKER_RE = re.compile(
     r"<!--[^>]*project-brain:\s*managed[^>]*-->|^---[\s\S]*?project-brain[\s\S]*?---",
     re.MULTILINE,
@@ -27,7 +33,7 @@ NAMING_EXEMPT = {"README.md", "CLAUDE.md", "CHANGELOG.md", "LICENSE.md"}
 
 
 def is_valid_doc_name(path: Path) -> bool:
-    """Check if a doc filename matches project-brain naming conventions.
+    """Check if a doc filename matches claude-memory-kit naming conventions.
 
     Accepts SCREAMING-KEBAB-CASE.md, or ADR format (YYYY-MM-DD-TITLE.md) inside a
     decisions/ folder.
@@ -96,10 +102,13 @@ def detect(root: Path) -> Project | None:
 def parse_version(text: str) -> int | None:
     """Parse brain version from CLAUDE.md.
 
+    The marker string is always `project-brain:` — the original identifier,
+    preserved across renames for backwards compatibility. See MANAGED_MARKER_RE.
+
     Supports:
       <!-- project-brain: managed -->            -> version 1 (implicit)
       <!-- project-brain: managed v2 -->         -> version 2
-      YAML frontmatter project-brain: {version:N} -> version N
+      YAML frontmatter  project-brain: {version:N} -> version N
     """
     m = re.search(r"project-brain:\s*managed(?:\s+v(\d+))?", text)
     if m:

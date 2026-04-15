@@ -1,5 +1,5 @@
 ---
-name: project-brain
+name: claude-memory-kit
 description: >
   Set up and maintain a living "brain" for any project. Scaffolds folder
   structure, manages credentials in workspace-root Security/, and evolves
@@ -12,7 +12,7 @@ description: >
   existing project.
 ---
 
-# Project Brain
+# Claude Memory Kit
 
 A living documentation system for any project. Provides 3 commands that scaffold, audit, and evolve project docs while keeping CLAUDE.md small and discoverable.
 
@@ -57,7 +57,7 @@ When executing any command, load these references as needed:
 Audits, merges, and sync decisions are deterministic Python tools, not prose instructions. From any command:
 
 ```bash
-python "$HOME/.claude/skills/project-brain/cli/run.py" <subcommand> "<path>" --json
+python "$HOME/.claude/skills/claude-memory-kit/cli/run.py" <subcommand> "<path>" --json
 ```
 
 Available subcommands:

@@ -1,6 +1,6 @@
-# Project Brain CLI
+# Claude Memory Kit CLI
 
-Deterministic tooling for the project-brain skill. Claude calls these tools instead of doing the counting in its head, which cuts token cost, removes variance, and gives you reproducible health scores.
+Deterministic tooling for the claude-memory-kit skill. Claude calls these tools instead of doing the counting in its head, which cuts token cost, removes variance, and gives you reproducible health scores.
 
 **Zero dependencies.** Pure Python 3.10+ stdlib. Works on Windows, macOS, Linux.
 
@@ -8,7 +8,7 @@ Deterministic tooling for the project-brain skill. Claude calls these tools inst
 
 ### `brain audit [path] [--json]`
 
-Audits a project-brain folder. Returns human-readable output by default, JSON with `--json`.
+Audits a claude-memory-kit folder. Returns human-readable output by default, JSON with `--json`.
 
 **Checks:**
 - Orphan docs (files in `docs/` not referenced from `CLAUDE.md`)
@@ -64,7 +64,7 @@ Orphans:
 
 ### From a Claude slash command
 ```bash
-python "$HOME/.claude/skills/project-brain/cli/run.py" audit "<project path>" --json
+python "$HOME/.claude/skills/claude-memory-kit/cli/run.py" audit "<project path>" --json
 ```
 
 ### As a module (after install)
@@ -74,7 +74,7 @@ python -m brain audit <path> [--json]
 
 ### Direct
 ```bash
-cd /path/to/project-brain-skill/cli
+cd /path/to/claude-memory-kit-skill/cli
 python run.py audit /path/to/your/project
 ```
 

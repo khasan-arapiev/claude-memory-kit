@@ -1,6 +1,25 @@
 # Changelog
 
-All notable changes to Project Brain. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
+All notable changes to Claude Memory Kit. Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
+
+## [0.3.1] — 2026-04-15
+
+Project renamed from `project-brain` to `claude-memory-kit` for clarity. "Brain" implied the tool thinks; it actually *remembers and organises* — "memory kit" describes the job honestly.
+
+### Changed
+
+- **GitHub repo:** `khasan-arapiev/project-brain` → `khasan-arapiev/claude-memory-kit` (old URL redirects).
+- **Skill name:** `project-brain` → `claude-memory-kit` in `SKILL.md` frontmatter. After reinstall, the skill installs to `~/.claude/skills/claude-memory-kit/`.
+- **Installer paths** updated to reference the new skill directory.
+- **All user-facing docs** (README, SKILL.md, commands, references, templates) rebranded to Claude Memory Kit.
+
+### Preserved (don't change, don't migrate)
+
+- **`<!-- project-brain: managed -->` marker** stays as-is in every managed CLAUDE.md file. It's the backwards-compatible identifier that signals "this file is managed by the skill." Changing it would invalidate every existing managed project.
+- **Python module path** `cli/brain/` unchanged.
+- **CLI binary name** `brain` unchanged (still `brain audit`, `brain sync preflight`, etc.).
+
+No behaviour changes. 95 tests still green.
 
 ## [0.3.0] — 2026-04-15
 
@@ -26,7 +45,7 @@ Third independent review cycle surfaced 16 items. All fixed. Theme: turning the 
 ### Added — Stop hook hardening
 
 - Hook now only nudges when the session made commits that *actually touched `docs/` or `CLAUDE.md`*. Unrelated commits (feature work, typo fixes) no longer trigger the prompt — kills the "banner-blind" problem.
-- Install path overridable via `BRAIN_SKILL_DIR` env var (was hardcoded to `~/.claude/skills/project-brain`).
+- Install path overridable via `BRAIN_SKILL_DIR` env var (was hardcoded to `~/.claude/skills/claude-memory-kit`).
 
 ### Added — tests
 

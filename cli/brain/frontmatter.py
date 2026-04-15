@@ -54,7 +54,7 @@ class Frontmatter:
     def validate(self) -> list[str]:
         """Return a list of human-readable warnings for unknown enum values.
 
-        Only checks fields that project-brain actually understands. Unknown
+        Only checks fields that claude-memory-kit actually understands. Unknown
         keys are allowed through (frontmatter is extensible), but typos in
         known enums would otherwise silently pass and break routing later.
         """
