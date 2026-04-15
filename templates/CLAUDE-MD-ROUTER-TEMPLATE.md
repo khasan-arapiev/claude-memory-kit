@@ -15,7 +15,7 @@ This is a **router-level** folder. It does not contain a single project, it cont
 
 ## Sub-Projects
 
-<!-- AUTO-GROWN ROUTES BELOW THIS LINE — managed by ProjectMerge / ProjectUpdate -->
+<!-- AUTO-GROWN ROUTES BELOW THIS LINE — managed by ProjectSync -->
 
 | Sub-project | What | Key file |
 |---|---|---|

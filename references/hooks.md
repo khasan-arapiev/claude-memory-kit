@@ -1,25 +1,29 @@
 # Hook Setup
 
-The project-brain skill uses one Claude Code hook: `SessionEnd`.
+Two optional Claude Code hooks make `/ProjectSync` feel ambient without surrendering any of its safety guarantees. Both are additive — the skill works without them.
 
-## SessionEnd hook
+Both live in `~/.claude/settings.json` under the `hooks` key.
 
-**Purpose:** Auto-run `ProjectSave` when a session closes, so insights from the session are preserved without the user remembering.
+## 1. SessionStart — show brain health as you open a project
 
-**Location:** `~/.claude/settings.json`
+**Purpose:** Run `brain audit` and `brain drift` the moment a session opens, so you see orphans, dead links, and drifted docs immediately — no "remember to run audit" discipline required.
 
-**Hook entry:**
+**Cost:** Two fast CLI calls. Silent if the brain is clean.
 
 ```json
 {
   "hooks": {
-    "SessionEnd": [
+    "SessionStart": [
       {
         "matcher": ".*",
         "hooks": [
           {
             "type": "command",
-            "command": "echo 'Project brain: SessionEnd hook fired. Run /ProjectSave manually next session if not auto-detected.'"
+            "command": "test -f CLAUDE.md && python \"$HOME/.claude/skills/project-brain/cli/run.py\" audit . 2>/dev/null | head -20 || true"
+          },
+          {
+            "type": "command",
+            "command": "test -f CLAUDE.md && python \"$HOME/.claude/skills/project-brain/cli/run.py\" drift . 2>/dev/null | head -10 || true"
           }
         ]
       }
@@ -28,28 +32,45 @@ The project-brain skill uses one Claude Code hook: `SessionEnd`.
 }
 ```
 
-**Important:** Claude Code's `SessionEnd` hook runs shell commands, not Claude prompts. The hook above just echoes a marker. To actually run `ProjectSave`, the next session's startup must check for an unfinished session and offer to save it.
+The `test -f CLAUDE.md` guard means the hook only fires in project-brain-managed folders. Elsewhere it's a no-op.
 
-**Implementation note:** Because `SessionEnd` hooks cannot directly invoke Claude commands, the project-brain skill uses a session-start safety check instead:
+## 2. Stop — prompt to sync when brain docs were touched
 
-1. At the start of every session in a managed project, the command preamble checks `docs/.pending/` for files
-2. It also checks the most recent commit in the project — if there is no recent `ProjectSave` commit but there are recent code/doc changes, it offers to run `ProjectSave` retroactively for the previous session
+**Purpose:** After a work turn, if any `docs/` or `CLAUDE.md` file was modified, print a reminder so the user can run `/ProjectSync` before losing the context. This is a **prompt, not an auto-run** — because extracting the right insights is a judgment call that needs Claude's attention, not a cron job.
 
-This achieves the same outcome as a true SessionEnd hook without depending on hooks firing reliably.
+```json
+{
+  "hooks": {
+    "Stop": [
+      {
+        "matcher": ".*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git -C . diff --name-only HEAD 2>/dev/null | grep -qE '^(docs/|CLAUDE\\.md)' && echo 'Brain docs changed this session. Run /ProjectSync to stage + merge.' || true"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## Why we don't auto-run `/ProjectSync` on hook fire
+
+Claude Code hooks run shell commands, not Claude prompts. They can't invoke a slash command directly, and even if they could, auto-running a destructive-ish operation (writing to the brain, making commits) every time a session ends would be unsafe — you'd accumulate low-quality saves and lose the friction that makes the pending/merge boundary trustworthy.
+
+The pattern that works is: **hooks report state, Claude does the writes.** SessionStart shows you what's drifted. Stop tells you there's work worth syncing. `/ProjectSync` is still a conscious command the user types — but with these hooks, they never forget.
 
 ## Manual install
 
-Run this command once after installing the project-brain skill (or have `ProjectNewSetup` install it during first run):
-
 ```bash
-# Verify settings.json exists
+# Ensure settings exists
 test -f "$HOME/.claude/settings.json" || echo '{}' > "$HOME/.claude/settings.json"
-
-# The actual hook addition is done by the project-brain skill the first time
-# any project-brain command runs. The skill checks settings.json for the hook
-# entry and adds it if missing.
+# Then hand-merge the hook blocks above into it. JSON merging is fiddly; use a
+# tool like `jq` or edit manually.
 ```
 
 ## Disabling
 
-To disable the auto-save behavior, remove the `SessionEnd` hook entry from `~/.claude/settings.json`. The 5 slash commands continue to work manually.
+Remove whichever hook blocks you don't want from `~/.claude/settings.json`. The 3 slash commands (`/ProjectNewSetup`, `/ProjectSetupFix`, `/ProjectSync`) continue to work with zero hooks installed.

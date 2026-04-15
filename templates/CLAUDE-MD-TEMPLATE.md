@@ -16,7 +16,7 @@ Read the right files for the task. Do not read everything.
 
 *Routing entries auto-populate below as docs are created. Each entry maps a task type to specific files.*
 
-<!-- AUTO-GROWN ROUTES BELOW THIS LINE — managed by ProjectMerge / ProjectUpdate -->
+<!-- AUTO-GROWN ROUTES BELOW THIS LINE — managed by ProjectSync -->
 
 ---
 

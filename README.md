@@ -6,7 +6,7 @@ Project Brain is a Claude Code skill that turns any project folder into a self-m
 
 > Built for solo founders, agencies, and teams who want Claude Code to feel like a long-term collaborator, not a forgetful assistant.
 
-**Status:** v0.1.0 MVP. Validated end-to-end against a real project. 48 tests passing. See [CHANGELOG.md](CHANGELOG.md) for what's shipped and [the bottom of this README](#status--known-limitations) for honest known limitations.
+**Status:** v0.2.0. Validated end-to-end against a real project. 52 tests passing. See [CHANGELOG.md](CHANGELOG.md) for what's shipped and [the bottom of this README](#status--known-limitations) for honest known limitations.
 
 ---
 
@@ -24,22 +24,23 @@ The result: every new Claude chat starts with a complete, current picture of you
 
 ---
 
-## The 5 Commands
+## The 3 Commands
 
 | Command | What it does | When to use |
 |---|---|---|
 | `/ProjectNewSetup` | Scaffolds folder structure, `CLAUDE.md`, Security config from scratch | Starting a brand-new project |
 | `/ProjectSetupFix` | Audits docs, fixes orphans, broken routes, oversize files, reports brain health score | Cleaning up or onboarding an existing project |
-| `/ProjectSave` | Captures this chat's insights into `docs/.pending/` | Mid-session checkpoint |
-| `/ProjectMerge` | Sweeps `.pending/` files into real docs, resolves conflicts, auto-wires routes | After saves pile up |
-| `/ProjectUpdate` | Save + merge in one shot (solo chat shortcut) | When no parallel sessions are running |
+| `/ProjectSync` | Extracts session insights, stages them, merges when safe, surfaces conflicts when not | Any time — replaces the old Save / Merge / Update trio |
+
+The unified `/ProjectSync` reads the current pending state from the CLI (`brain sync plan`) and picks the right action automatically: stage-only when other sessions have unmerged items, quick-merge when you're solo, stop-and-ask when items conflict. You can't pick the wrong command because there's only one.
 
 ---
 
 ## How it Works
 
 ```
-your work → /ProjectSave → docs/.pending/ → /ProjectMerge → real docs → auto-wired in CLAUDE.md
+your work → /ProjectSync → (stage if other sessions pending) → docs/.pending/
+                        → (merge when safe)                  → real docs + auto-wired CLAUDE.md
 ```
 
 Each project has three physically separated layers sharing one brain:
@@ -75,8 +76,8 @@ cd project-brain; .\install.ps1
 The installer:
 - Verifies Python 3.10+
 - Copies the skill to `~/.claude/skills/project-brain/`
-- Copies the 5 slash commands to `~/.claude/commands/`
-- Runs the test suite (44 tests, stdlib only)
+- Copies the 3 slash commands to `~/.claude/commands/`
+- Runs the test suite (52 tests, stdlib only)
 - Prints next steps
 
 Re-run any time to upgrade. The script is idempotent.
@@ -91,9 +92,11 @@ Copy `.` to `~/.claude/skills/project-brain/` and `commands/Project*.md` to `~/.
 2. `cd` into any project folder
 3. Type `/ProjectNewSetup` (for a new project) or `/ProjectSetupFix` (to audit an existing one)
 
-### (Optional) Auto-save on session end
+### (Optional) Hooks
 
-See `references/hooks.md` for a SessionEnd hook that runs `/ProjectSave` automatically.
+See `references/hooks.md` for two recommended hooks:
+- **SessionStart** — auto-run `brain audit` + `brain drift` so you see project health the moment a session opens.
+- **Stop** — if the session touched brain docs, prompt (not auto-run) `/ProjectSync`.
 
 ---
 
@@ -102,12 +105,10 @@ See `references/hooks.md` for a SessionEnd hook that runs `/ProjectSave` automat
 ```
 .
 ├── SKILL.md                      Skill entrypoint (Claude reads this)
-├── commands/                     The 5 slash commands
+├── commands/                     The 3 slash commands
 │   ├── ProjectNewSetup.md
 │   ├── ProjectSetupFix.md
-│   ├── ProjectSave.md
-│   ├── ProjectMerge.md
-│   └── ProjectUpdate.md
+│   └── ProjectSync.md
 ├── cli/                          Deterministic tooling (Python 3.10+ stdlib)
 │   ├── run.py                    Standalone runner: python run.py audit <path>
 │   ├── brain/                    Package: brain.audit, brain.project, brain.cli
@@ -139,11 +140,12 @@ python cli/run.py decisions list     /path/to/project
 python cli/run.py decisions search "css framework" /path/to/project
 python cli/run.py query "FTP password" /path/to/project --top 3
 python cli/run.py pending list       /path/to/project --json
+python cli/run.py sync plan          /path/to/project --session-id <id> --json
 ```
 
 **Users never call these directly.** Slash commands invoke the CLI under the hood — same as how Claude already calls Bash for git or file operations. The CLI is the engine; slash commands are the steering wheel.
 
-**Test suite:** `python -m unittest discover tests -v` (44 tests, all stdlib).
+**Test suite:** `python -m unittest discover tests -v` (52 tests, all stdlib).
 
 See `cli/README.md` for the full CLI reference. Planned: `brain impact`, `brain init`.
 
@@ -188,20 +190,22 @@ See `references/quality-rules.md` for the full rubric.
 
 ## Status & known limitations
 
-**Honest status:** v0.1.0 MVP. Every command runs end-to-end on real projects. Foundation is real software (deterministic CLI, 48 tests, cross-platform installers) — not a clever prompt.
+**Honest status:** v0.2.0. Every command runs end-to-end on real projects. Foundation is real software (deterministic CLI, 52 tests, cross-platform installers) — not a clever prompt.
 
-Validated by a full dogfood pass against a fresh SaaS project:
-- 5 of 5 slash commands exercised
-- 3 parallel subagent saves (no corruption)
-- 2 contradicting subagent decisions (conflict caught and resolved)
-- Drift detection on a real opt-in doc
-- Final brain: 100% clean, 14 docs, 1 drift-tracked
+**What's new in v0.2.0:**
+- `/ProjectSave`, `/ProjectMerge`, `/ProjectUpdate` collapsed into one state-aware `/ProjectSync`.
+- Conflict detection widened to `rule` / `decision` / `correction` (not just decisions).
+- Stricter orphan detection for decisions (requires an explicit route, not a prose mention).
+- Unknown `{{placeholder}}` tokens in pending targets now surface as validation issues.
+- Frontmatter validates known enum values (`status`, `confidence`).
+- IO-error guards on every CLI command — a locked file no longer aborts a whole audit.
+- Query pre-tokenizes chunks — faster on large brains.
 
 **Known limitations** (none are blockers, all are roadmap):
 - `brain query` uses TF-IDF, not semantic embeddings. Synonym mismatches happen ("Sentry" vs "error monitoring").
 - `brain drift` is mtime-based, not diff-aware. Whitespace-only edits trigger false drift.
-- Conflict detection covers `decision` items only; semantic conflicts in rules and facts still need Claude to read.
-- SessionEnd auto-save hook is documented (see `references/hooks.md`) but not auto-installed.
+- `fact` items still stack at the same target without conflict detection (intentional — facts are usually additive).
+- Hooks are documented (see `references/hooks.md`) but not auto-installed.
 
 See [CHANGELOG.md](CHANGELOG.md) for the full roadmap.
 

@@ -18,6 +18,15 @@ from .project import (
     estimate_tokens,
     is_valid_doc_name,
     iter_doc_files,
+    read_md,
+)
+
+# An explicit route to the decisions folder. Matches `[text](docs/decisions/...)`,
+# `[text](decisions/...)`, or bare backticked paths like `` `docs/decisions/` ``.
+# Substring presence of the word "decisions" is too loose (false positives in prose).
+DECISIONS_ROUTE_RE = re.compile(
+    r"(?:\]\([^)]*\bdecisions/?[^)]*\))|(?:`[^`]*\bdecisions/?[^`]*`)",
+    re.IGNORECASE,
 )
 
 # Budgets (token-based, not line-based)
@@ -93,7 +102,7 @@ def audit(root: Path) -> AuditReport | None:
     _scan_required_files(project, report)
 
     report.total_brain_tokens = report.claude_md_tokens + sum(
-        estimate_tokens(p.read_text(encoding="utf-8", errors="replace")) for p in docs
+        estimate_tokens(read_md(p)) for p in docs
     )
 
     drift_report = run_drift(project.root)
@@ -115,7 +124,8 @@ def _scan_orphans(project: Project, docs: list[Path], report: AuditReport) -> No
     ADRs are considered discoverable.
     """
     text = project.claude_md_text
-    decisions_routed = "decisions" in text  # cheap presence check
+    # Require an explicit route to `decisions/`, not a prose mention of the word.
+    decisions_routed = bool(DECISIONS_ROUTE_RE.search(text))
     for doc in docs:
         if "decisions" in doc.parts and decisions_routed:
             continue
@@ -183,7 +193,7 @@ def _scan_naming(docs: list[Path], report: AuditReport) -> None:
 
 def _scan_doc_sizes(docs: list[Path], report: AuditReport) -> None:
     for doc in docs:
-        tokens = estimate_tokens(doc.read_text(encoding="utf-8", errors="replace"))
+        tokens = estimate_tokens(read_md(doc))
         if tokens > DOC_TOKEN_CAP:
             report.oversize_docs.append(
                 Finding(

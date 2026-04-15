@@ -33,6 +33,23 @@ from .query import (
     render_human as query_human,
     render_json as query_json,
 )
+from .sync import render_human as sync_human, render_json as sync_json, sync_plan
+
+
+def _guard(fn):
+    """Wrap a CLI handler so IO errors become structured failures, not crashes.
+
+    Lets huge-project audits survive a locked file or a stale symlink instead
+    of aborting half-scanned. Returns exit code 3 on unhandled IO issues.
+    """
+    def wrapped(*args, **kwargs) -> int:
+        try:
+            return fn(*args, **kwargs)
+        except (OSError, ValueError) as e:
+            print(f"brain: IO error: {e}", file=sys.stderr)
+            return 3
+    wrapped.__name__ = fn.__name__
+    return wrapped
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -77,12 +94,28 @@ def main(argv: list[str] | None = None) -> int:
 
     pending_p = sub.add_parser(
         "pending",
-        help="Inspect items staged in docs/.pending/ (used by /ProjectMerge).",
+        help="Inspect items staged in docs/.pending/ (used by /ProjectSync).",
     )
     pending_sub = pending_p.add_subparsers(dest="pending_command", required=True)
     pending_list = pending_sub.add_parser("list", help="List all pending items grouped by target.")
     pending_list.add_argument("path", nargs="?", default=".", help="Project root")
     pending_list.add_argument("--json", action="store_true")
+
+    sync_p = sub.add_parser(
+        "sync",
+        help="State-aware planner for /ProjectSync (decides stage vs merge vs quick).",
+    )
+    sync_sub = sync_p.add_subparsers(dest="sync_command", required=True)
+    sync_plan_p = sync_sub.add_parser(
+        "plan",
+        help="Inspect docs/.pending/ and emit the recommended action for this session.",
+    )
+    sync_plan_p.add_argument("path", nargs="?", default=".", help="Project root")
+    sync_plan_p.add_argument(
+        "--session-id", default="",
+        help="Current session id. Items from other sessions flip mode to merge_first.",
+    )
+    sync_plan_p.add_argument("--json", action="store_true")
 
     args = parser.parse_args(argv)
 
@@ -100,10 +133,18 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "pending":
         if args.pending_command == "list":
             return _cmd_pending_list(Path(args.path), json_output=args.json)
+    if args.command == "sync":
+        if args.sync_command == "plan":
+            return _cmd_sync_plan(
+                Path(args.path),
+                session_id=args.session_id,
+                json_output=args.json,
+            )
 
     return 2  # unreachable
 
 
+@_guard
 def _cmd_audit(path: Path, json_output: bool) -> int:
     report = audit(path)
     if report is None:
@@ -123,6 +164,7 @@ def _cmd_audit(path: Path, json_output: bool) -> int:
     return 1 if has_findings else 0
 
 
+@_guard
 def _cmd_drift(path: Path, json_output: bool) -> int:
     report = drift(path)
     if report is None:
@@ -137,6 +179,7 @@ def _cmd_drift(path: Path, json_output: bool) -> int:
     return 1 if (report.drift or report.missing_files) else 0
 
 
+@_guard
 def _cmd_decisions_list(path: Path, json_output: bool) -> int:
     decisions = list_decisions(path)
     if decisions is None:
@@ -146,6 +189,7 @@ def _cmd_decisions_list(path: Path, json_output: bool) -> int:
     return 0
 
 
+@_guard
 def _cmd_decisions_search(path: Path, query: str, json_output: bool) -> int:
     decisions = search_decisions(path, query)
     if decisions is None:
@@ -156,6 +200,7 @@ def _cmd_decisions_search(path: Path, query: str, json_output: bool) -> int:
     return 0 if decisions else 1
 
 
+@_guard
 def _cmd_query(path: Path, text: str, top_n: int, json_output: bool) -> int:
     hits = run_query(path, text, top_n=top_n)
     if hits is None:
@@ -165,6 +210,7 @@ def _cmd_query(path: Path, text: str, top_n: int, json_output: bool) -> int:
     return 0 if hits else 1
 
 
+@_guard
 def _cmd_pending_list(path: Path, json_output: bool) -> int:
     items = list_pending(path)
     if items is None:
@@ -175,8 +221,19 @@ def _cmd_pending_list(path: Path, json_output: bool) -> int:
         print(pending_json(items, conflicts))
     else:
         print(pending_human(items, conflicts))
-    # Exit 1 if conflicts present so /ProjectMerge can short-circuit in CI
+    # Exit 1 if conflicts present so /ProjectSync can short-circuit in CI
     return 1 if conflicts else 0
+
+
+@_guard
+def _cmd_sync_plan(path: Path, session_id: str, json_output: bool) -> int:
+    plan = sync_plan(path, session_id=session_id)
+    if plan is None:
+        _no_brain(path, json_output)
+        return 2
+    print(sync_json(plan) if json_output else sync_human(plan))
+    # Non-zero when user attention is needed (conflicts or other sessions staged).
+    return 1 if plan.mode in ("merge_first", "resolve_conflicts") else 0
 
 
 def _no_brain(path: Path, json_output: bool) -> None:

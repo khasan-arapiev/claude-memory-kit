@@ -9,7 +9,7 @@ This project uses the **project-brain** system, a living documentation setup tha
 - Docs never bloat, `CLAUDE.md` stays small, details live in focused sub-files
 - New knowledge auto-wires itself into the routing system so it's always discoverable
 
-## The 5 commands
+## The 3 commands
 
 Type these as slash commands in Claude Code:
 
@@ -17,17 +17,16 @@ Type these as slash commands in Claude Code:
 |---|---|---|
 | `/ProjectNewSetup` | Builds a new project structure from nothing | Starting a brand new project |
 | `/ProjectSetupFix` | Audits the project, fixes orphans, broken routes, oversize files, reports brain health | Cleaning up or auditing |
-| `/ProjectSave` | Captures insights from the current chat into `docs/.pending/` | Mid-session checkpoint |
-| `/ProjectMerge` | Merges `.pending/` files into real docs, creates new files if needed | After saves pile up |
-| `/ProjectUpdate` | Save plus merge in one step, skips the pending folder | Solo chat, no parallel sessions |
+| `/ProjectSync` | Extracts session insights, stages them, merges when safe, stops if conflicts exist | Any time — the one command for saving / merging / updating |
 
 ## How it fits together
 
 ```
-Your work → ProjectSave (auto at session end) → .pending/ → ProjectMerge → real docs
+Your work → /ProjectSync → (stage if other sessions pending) → docs/.pending/
+                        → (merge when safe)                  → real docs + auto-wired CLAUDE.md
 ```
 
-Or the shortcut: run `/ProjectUpdate` to do both at once.
+`/ProjectSync` reads the current pending state via `brain sync plan` and picks the right action automatically — you can't pick the wrong command because there's only one.
 
 ## Folder layout
 

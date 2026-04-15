@@ -64,7 +64,7 @@ def detect(root: Path) -> Project | None:
     if not claude.is_file():
         return None
 
-    text = claude.read_text(encoding="utf-8", errors="replace")
+    text = _read_claude_md(claude)
     docs = root / "docs"
     has_docs = docs.is_dir()
 
@@ -128,6 +128,27 @@ def iter_doc_files(project: Project) -> list[Path]:
             if p.name not in NAMING_EXEMPT
         )
     return []
+
+
+def _read_claude_md(path: Path) -> str:
+    """CLAUDE.md must exist at this point, but tolerate IO errors (permissions, races)."""
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return ""
+
+
+def read_md(path: Path) -> str:
+    """Read a markdown file with UTF-8 tolerance.
+
+    Single place for the encoding dance. Returns "" on IO errors
+    rather than raising, so audits of large trees with a few unreadable
+    files don't crash mid-scan.
+    """
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except (OSError, ValueError):
+        return ""
 
 
 def estimate_tokens(text: str) -> int:

@@ -36,6 +36,7 @@ class Decision:
     supersedes: str | None = None
     superseded_by: str | None = None  # populated post-scan
     body_excerpt: str = ""           # first ~200 chars of body for previews
+    warnings: list[str] = field(default_factory=list)  # frontmatter enum issues
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -126,6 +127,7 @@ def _parse_adr(path: Path, project_root: Path) -> Decision | None:
         topics=topics,
         supersedes=supersedes,
         body_excerpt=excerpt,
+        warnings=fm.validate(),
     )
 
 

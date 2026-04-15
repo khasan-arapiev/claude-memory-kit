@@ -25,6 +25,10 @@ from pathlib import Path
 FRONTMATTER_RE = re.compile(r"^---\s*\n(.*?)\n---\s*\n", re.DOTALL)
 
 
+ALLOWED_STATUS = {"active", "superseded", "deprecated", "proposed", "accepted", "approved"}
+ALLOWED_CONFIDENCE = {"high", "medium", "low"}
+
+
 @dataclass
 class Frontmatter:
     data: dict = field(default_factory=dict)
@@ -41,6 +45,26 @@ class Frontmatter:
             return [v]
         return []
 
+    def validate(self) -> list[str]:
+        """Return a list of human-readable warnings for unknown enum values.
+
+        Only checks fields that project-brain actually understands. Unknown
+        keys are allowed through (frontmatter is extensible), but typos in
+        known enums would otherwise silently pass and break routing later.
+        """
+        warnings: list[str] = []
+        status = self.data.get("status")
+        if isinstance(status, str) and status.lower() not in ALLOWED_STATUS:
+            warnings.append(
+                f"unknown status '{status}' (valid: {sorted(ALLOWED_STATUS)})"
+            )
+        confidence = self.data.get("confidence")
+        if isinstance(confidence, str) and confidence.lower() not in ALLOWED_CONFIDENCE:
+            warnings.append(
+                f"unknown confidence '{confidence}' (valid: {sorted(ALLOWED_CONFIDENCE)})"
+            )
+        return warnings
+
 
 def parse(text: str) -> Frontmatter:
     m = FRONTMATTER_RE.match(text)
@@ -52,7 +76,11 @@ def parse(text: str) -> Frontmatter:
 
 
 def parse_file(path: Path) -> Frontmatter:
-    return parse(path.read_text(encoding="utf-8", errors="replace"))
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return Frontmatter(data={}, body="")
+    return parse(text)
 
 
 def _parse_block(raw: str) -> dict:

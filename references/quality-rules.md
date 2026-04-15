@@ -116,7 +116,7 @@ When `ProjectSetupFix` runs at a router level:
 
 ## Self-growing schema
 
-When a `ProjectMerge` or `ProjectUpdate` finds an item that does not fit any existing doc:
+When a `ProjectSync` finds an item that does not fit any existing doc:
 
 1. Determine the appropriate `docs/<category>/` folder based on item type:
    - `rule` → `docs/strategy/` or `docs/workflows/` (depending on rule scope)

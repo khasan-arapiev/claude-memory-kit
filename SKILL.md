@@ -5,16 +5,16 @@ description: >
   structure, manages credentials in workspace-root Security/, and evolves
   documentation across sessions without bloating context. Use this skill
   whenever the user invokes any of these commands or asks about project
-  documentation setup: ProjectNewSetup, ProjectSetupFix, ProjectSave,
-  ProjectMerge, ProjectUpdate. Also trigger when the user asks to "set up
-  a project", "create project structure", "audit project docs", "save
-  project insights", "merge pending updates", or mentions setting up
-  CLAUDE.md routing for a new or existing project.
+  documentation setup: ProjectNewSetup, ProjectSetupFix, ProjectSync. Also
+  trigger when the user asks to "set up a project", "create project
+  structure", "audit project docs", "sync project insights", "save/merge
+  project updates", or mentions setting up CLAUDE.md routing for a new or
+  existing project.
 ---
 
 # Project Brain
 
-A living documentation system for any project. Provides 5 commands that scaffold, audit, and evolve project docs while keeping CLAUDE.md small and discoverable.
+A living documentation system for any project. Provides 3 commands that scaffold, audit, and evolve project docs while keeping CLAUDE.md small and discoverable.
 
 ## When to invoke this skill
 
@@ -24,9 +24,9 @@ Activate whenever the user runs one of these slash commands or mentions project 
 |---|---|
 | `ProjectNewSetup` | Scaffold a brand new project from nothing |
 | `ProjectSetupFix` | Audit and polish an existing project's structure |
-| `ProjectSave` | Mid-session checkpoint of insights to `.pending/` |
-| `ProjectMerge` | Sweep `.pending/` into real docs |
-| `ProjectUpdate` | Solo-chat shortcut: save + merge in one shot |
+| `ProjectSync` | Unified save + merge: extracts session insights, stages them, merges when safe, surfaces conflicts when not |
+
+The 0.1.x trio (`ProjectSave` / `ProjectMerge` / `ProjectUpdate`) is gone. If the user types one of those names, treat it as `/ProjectSync` — the new command picks the right mode from state (`brain sync plan`).
 
 The actual command logic lives in `~/.claude/commands/<CommandName>.md` files. This skill provides shared references and templates that the commands use.
 
@@ -40,21 +40,21 @@ Each project has three physically separated layers sharing one brain:
 | Project | The deliverable | `project/` + `assets/` | Yes |
 | Tools | Dev tools, tests, scripts | `tools/` | Never |
 
-The brain auto-routes via `CLAUDE.md` (hard cap 200 lines). New docs get auto-wired into `CLAUDE.md` as routing entries, so every chat starts with a complete map of where knowledge lives.
+The brain auto-routes via `CLAUDE.md` (token-capped, not line-capped — see `references/quality-rules.md`). New docs get auto-wired into `CLAUDE.md` as routing entries, so every chat starts with a complete map of where knowledge lives.
 
 ## Key references
 
 When executing any command, load these references as needed:
 
-- **CLI tooling:** `cli/README.md` — the deterministic `brain` CLI (audit, etc.). Prefer calling the CLI over manually counting files.
-- **Extraction rules:** `references/extraction-rubric.md` — what gets saved vs ignored during ProjectSave
+- **CLI tooling:** `cli/README.md` — the deterministic `brain` CLI (audit, drift, sync, query, pending, decisions). Prefer calling the CLI over manually counting files.
+- **Extraction rules:** `references/extraction-rubric.md` — what gets saved vs ignored during ProjectSync
 - **Quality enforcement:** `references/quality-rules.md` — naming, size caps, ADR format, orphan detection
-- **Command details:** `references/commands-overview.md` — full behavior matrix for all 5 commands
-- **Hook setup:** `references/hooks.md` — SessionEnd hook config for auto-save
+- **Command details:** `references/commands-overview.md` — full behavior matrix for all 3 commands
+- **Hook setup:** `references/hooks.md` — SessionStart audit + Stop prompt-to-sync hooks
 
 ## Calling the CLI
 
-Audits and merges are deterministic Python tools, not prose instructions. From any command:
+Audits, merges, and sync decisions are deterministic Python tools, not prose instructions. From any command:
 
 ```bash
 python "$HOME/.claude/skills/project-brain/cli/run.py" <subcommand> "<path>" --json
@@ -65,6 +65,8 @@ Available subcommands:
 - `drift` — docs whose described code has changed
 - `decisions list` / `decisions search <q>` — ADR ledger
 - `query <text>` — retrieve only the brain sections relevant to a topic
+- `pending list` — enumerate `docs/.pending/` items with conflicts
+- `sync plan --session-id <id>` — state-aware routing: `empty` / `quick` / `merge_first` / `resolve_conflicts`
 
 ## Retrieval-first behavior
 
@@ -96,3 +98,4 @@ Located in `templates/`:
 4. **Multi-chat safe** — `.pending/` staging prevents conflicts between parallel sessions
 5. **Self-growing** — new files auto-wire into `CLAUDE.md` routing
 6. **Credential hygiene** — all secrets in workspace-root `Security/`, never scattered
+7. **One command, right action** — `/ProjectSync` reads state and picks the safe mode; the user can't pick wrong

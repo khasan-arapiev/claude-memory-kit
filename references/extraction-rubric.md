@@ -1,6 +1,6 @@
 # Extraction Rubric
 
-When `ProjectSave` (manual or auto via SessionEnd hook) scans a session, it must distinguish high-signal information worth preserving from noise. Use this rubric.
+When `ProjectSync` scans a session (manually or via the Stop hook prompt), it must distinguish high-signal information worth preserving from noise. Use this rubric.
 
 ## SAVE these
 
@@ -28,8 +28,8 @@ When `ProjectSave` (manual or auto via SessionEnd hook) scans a session, it must
 - Trade-offs accepted
 
 **Example:**
-> User said: "Let's use the command-based approach with ProjectSave/Merge instead of auto-silent"
-> Save as: `type: decision, target: docs/decisions/{{DATE}}-LIVING-DOCS-MODEL.md, content: "Chose command-based living docs (ProjectSave/Merge) over auto-silent because user wants explicit control of when docs evolve."`
+> User said: "Let's use the command-based approach with ProjectSync instead of auto-silent"
+> Save as: `type: decision, target: docs/decisions/{{DATE}}-LIVING-DOCS-MODEL.md, content: "Chose command-based living docs (ProjectSync) over auto-silent because user wants explicit control of when docs evolve."`
 
 ### Type: `correction`
 - "I was wrong about X, the actual behavior is Y"

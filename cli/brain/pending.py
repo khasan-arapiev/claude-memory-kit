@@ -19,7 +19,7 @@ Each item is an H2 declaring a type, followed by metadata fields and a body:
 
 The CLI handles the deterministic parts (parse, list, validate). Semantic
 work (which doc to put an item in, conflict resolution, dedup-by-meaning)
-stays with Claude inside the /ProjectMerge slash command.
+stays with Claude inside the /ProjectSync slash command.
 """
 from __future__ import annotations
 
@@ -29,11 +29,15 @@ from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .project import detect
+from .project import detect, read_md
 
 
 VALID_TYPES = {"rule", "fact", "decision", "correction"}
 VALID_CONFIDENCE = {"high", "medium", "low"}
+# Placeholders allowed inside `target:` fields. Expanded at merge time by the
+# slash command. Any other {{...}} token is a typo or an unsupported template.
+KNOWN_PLACEHOLDERS = {"{{date}}", "{{project-slug}}", "{{slug}}"}
+PLACEHOLDER_RE = re.compile(r"\{\{[^}]+\}\}")
 
 H2_RE = re.compile(r"^##\s+(\S+)\s*$", re.MULTILINE)
 FIELD_RE = re.compile(r"^\*\*([a-z][a-z_-]*):\*\*[ \t]*([^\r\n]*?)[ \t]*$", re.MULTILINE)
@@ -68,13 +72,15 @@ class PendingItem:
 def detect_conflicts(items: list[PendingItem]) -> list[Conflict]:
     """Flag groups of pending items that likely conflict with each other.
 
-    v1 rule: 2+ `decision` items targeting the same file with non-identical
-    bodies. Decisions are explicit choices, so two of them at the same target
-    are almost certainly contradictions Claude needs to resolve before merging.
+    Rule: 2+ items of the same type targeting the same file with non-identical
+    bodies. Decisions are the most obvious case (explicit choices), but the
+    same shape of bug can hit `rule` items ("never use dashes" vs "always use
+    dashes") and `correction` items (two corrections at the same spot).
 
-    Identical-body duplicates are skipped (those are dedup work, not conflicts).
-    Other types (rule, fact, correction) can stack at the same target without
-    necessarily conflicting, so they're not flagged here.
+    `fact` items are exempted: two facts at the same target are almost always
+    stackable (list of IDs, list of env vars) rather than contradictory.
+
+    Identical-body duplicates are skipped — those are dedup work, not conflicts.
     """
     conflicts: list[Conflict] = []
     by_key: dict[tuple[str, str], list[PendingItem]] = defaultdict(list)
@@ -84,8 +90,10 @@ def detect_conflicts(items: list[PendingItem]) -> list[Conflict]:
         by_key[(item.target, item.type)].append(item)
 
     for (target, type_), group in by_key.items():
-        if len(group) < 2 or type_ != "decision":
+        if len(group) < 2:
             continue
+        if type_ == "fact":
+            continue  # facts stack, they don't contradict
         unique_bodies = {it.content.strip() for it in group}
         if len(unique_bodies) < 2:
             continue  # all identical = dedup case, not a conflict
@@ -94,7 +102,7 @@ def detect_conflicts(items: list[PendingItem]) -> list[Conflict]:
                 target=target,
                 type=type_,
                 item_ids=[it.id for it in group],
-                reason=f"{len(group)} decision items target the same file with different content",
+                reason=f"{len(group)} {type_} items target the same file with different content",
             )
         )
     return conflicts
@@ -125,7 +133,7 @@ def _find_pending_dir(root: Path) -> Path | None:
 
 
 def _parse_pending_file(path: Path, project_root: Path) -> list[PendingItem]:
-    text = path.read_text(encoding="utf-8", errors="replace")
+    text = read_md(path)
     session_id = path.stem
     rel_source = str(path.relative_to(project_root).as_posix())
 
@@ -170,6 +178,14 @@ def _parse_pending_file(path: Path, project_root: Path) -> list[PendingItem]:
             item.issues.append(f"invalid confidence '{confidence}' (valid: {sorted(VALID_CONFIDENCE)})")
         if not body:
             item.issues.append("empty body")
+        # Flag unknown {{placeholder}} tokens in target paths so /ProjectSync
+        # doesn't silently write a file literally named "{{date}}-X.md".
+        for token in PLACEHOLDER_RE.findall(target):
+            if token not in KNOWN_PLACEHOLDERS:
+                item.issues.append(
+                    f"unknown placeholder '{token}' in target "
+                    f"(known: {sorted(KNOWN_PLACEHOLDERS)})"
+                )
 
         items.append(item)
     return items
@@ -216,7 +232,7 @@ def render_json(items: list[PendingItem], conflicts: list[Conflict] | None = Non
     """Emit a JSON object with `items` and `conflicts` arrays.
 
     Note: this is a shape change from earlier versions which emitted a bare
-    items array. /ProjectMerge consumes both keys.
+    items array. /ProjectSync consumes both keys.
     """
     return json.dumps(
         {

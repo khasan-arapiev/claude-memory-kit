@@ -20,7 +20,7 @@ from collections import Counter
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from .project import detect, iter_doc_files
+from .project import detect, iter_doc_files, read_md
 
 
 # Common English stopwords - keep the list tiny to avoid filtering useful terms.
@@ -47,6 +47,8 @@ class Chunk:
     heading_level: int     # 0 for pre-heading content, else 2/3
     line_start: int        # 1-based line in source file
     body: str              # full section text including heading line
+    tokens: list[str] = field(default_factory=list)    # pre-tokenized body
+    body_compact: str = ""                             # whitespace-collapsed body for snippet
 
 
 @dataclass
@@ -80,8 +82,12 @@ def query(root: Path, q: str, top_n: int = 3) -> list[QueryHit] | None:
 
 
 def _chunk_doc(path: Path, project_root: Path) -> list[Chunk]:
-    """Split a doc into chunks at H2 boundaries (H3 nested inside count too)."""
-    text = path.read_text(encoding="utf-8", errors="replace")
+    """Split a doc into chunks at H2 boundaries (H3 nested inside count too).
+
+    Each chunk pre-computes its tokens and compacted body so the ranking and
+    snippet passes don't redo the same work per query.
+    """
+    text = read_md(path)
     rel = str(path.relative_to(project_root).as_posix())
 
     # Strip frontmatter so it doesn't pollute search
@@ -98,33 +104,34 @@ def _chunk_doc(path: Path, project_root: Path) -> list[Chunk]:
         if m and len(m.group(1)) == CHUNK_HEADING_LEVEL:
             starts.append((i, len(m.group(1)), m.group(2).strip()))
 
+    def _mk(heading: str, level: int, line_start: int, body: str) -> Chunk:
+        return Chunk(
+            doc_path=rel,
+            heading=heading,
+            heading_level=level,
+            line_start=line_start,
+            body=body,
+            tokens=_tokenize(body),
+            body_compact=re.sub(r"\s+", " ", body).strip(),
+        )
+
     if not starts:
-        # Whole doc is one chunk (no H2 to split on)
         body = "\n".join(lines).strip()
         if body:
-            return [Chunk(doc_path=rel, heading="", heading_level=0, line_start=1, body=body)]
+            return [_mk("", 0, 1, body)]
         return []
 
     chunks: list[Chunk] = []
-    # Pre-heading content (intro, frontmatter remnants, H1)
     if starts[0][0] > 0:
         body = "\n".join(lines[: starts[0][0]]).strip()
         if body:
-            chunks.append(Chunk(doc_path=rel, heading="", heading_level=0, line_start=1, body=body))
+            chunks.append(_mk("", 0, 1, body))
 
     for idx, (line_i, level, heading) in enumerate(starts):
         end = starts[idx + 1][0] if idx + 1 < len(starts) else len(lines)
         body = "\n".join(lines[line_i:end]).strip()
         if body:
-            chunks.append(
-                Chunk(
-                    doc_path=rel,
-                    heading=heading,
-                    heading_level=level,
-                    line_start=line_i + 1,
-                    body=body,
-                )
-            )
+            chunks.append(_mk(heading, level, line_i + 1, body))
     return chunks
 
 
@@ -138,13 +145,12 @@ def _score_chunks(chunks: list[Chunk], q: str, top_n: int) -> list[QueryHit]:
     if not query_terms:
         return []
 
-    chunk_tokens = [_tokenize(c.body) for c in chunks]
+    # Chunks carry pre-computed tokens from _chunk_doc; don't re-tokenize.
     n_chunks = len(chunks)
 
-    # Document frequency for query terms only (cheap)
     df = Counter()
-    for tokens in chunk_tokens:
-        unique = set(tokens)
+    for c in chunks:
+        unique = set(c.tokens)
         for term in query_terms:
             if term in unique:
                 df[term] += 1
@@ -156,11 +162,11 @@ def _score_chunks(chunks: list[Chunk], q: str, top_n: int) -> list[QueryHit]:
     }
 
     hits: list[QueryHit] = []
-    for chunk, tokens in zip(chunks, chunk_tokens):
-        if not tokens:
+    for chunk in chunks:
+        if not chunk.tokens:
             continue
-        tf = Counter(tokens)
-        total = len(tokens)
+        tf = Counter(chunk.tokens)
+        total = len(chunk.tokens)
         score = 0.0
         for term in query_terms:
             if term in tf:
@@ -177,7 +183,7 @@ def _score_chunks(chunks: list[Chunk], q: str, top_n: int) -> list[QueryHit]:
                 doc_path=chunk.doc_path,
                 heading=chunk.heading,
                 line_start=chunk.line_start,
-                snippet=_make_snippet(chunk.body, query_terms),
+                snippet=_make_snippet(chunk.body_compact, query_terms),
                 body=chunk.body,
             )
         )
@@ -186,9 +192,11 @@ def _score_chunks(chunks: list[Chunk], q: str, top_n: int) -> list[QueryHit]:
     return hits[:top_n]
 
 
-def _make_snippet(body: str, query_terms: list[str], max_len: int = 240) -> str:
-    """Return ~max_len chars centered on the first query-term match."""
-    body_compact = re.sub(r"\s+", " ", body).strip()
+def _make_snippet(body_compact: str, query_terms: list[str], max_len: int = 240) -> str:
+    """Return ~max_len chars centered on the first query-term match.
+
+    `body_compact` is already whitespace-normalised by `_chunk_doc`.
+    """
     if not query_terms:
         return body_compact[:max_len]
     lower = body_compact.lower()

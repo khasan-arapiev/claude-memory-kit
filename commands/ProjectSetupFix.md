@@ -97,7 +97,7 @@ Deferred:
   - 1 oversize doc (docs/strategy/PLAN.md, 9200 tokens) — user chose not to split
 
 Suggested next steps:
-  - /ProjectMerge if there are pending updates
+  - /ProjectSync if there are pending updates
   - Consider splitting PLAN.md next session
 ```
 
